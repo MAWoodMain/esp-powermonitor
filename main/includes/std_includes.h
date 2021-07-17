@@ -4,6 +4,7 @@
 
 #ifndef STD_INCLUDES_H
 #define STD_INCLUDES_H
+/**************************** LIB INCLUDES ******************************/
 
 /* stdlib */
 #include <stdint.h>
@@ -12,6 +13,8 @@
 #include <stdio.h>
 #include <string.h>
 #include <sys/param.h>
+
+/**************************** USER INCLUDES *****************************/
 
 /* FreeRTOS */
 #include "freertos/FreeRTOS.h"
@@ -27,4 +30,11 @@
 /* APP */
 #include "pinmap.h"
 
-#endif //STD_INCLUDES_H
+/******************************* DEFINES ********************************/
+/******************************** ENUMS *********************************/
+/****************************** TYPEDEFS ********************************/
+/***************************** STRUCTURES *******************************/
+/************************** FUNCTION PROTOTYPES *************************/
+/******************************* GLOBALS ********************************/
+
+#endif /* STD_INCLUDES_H */

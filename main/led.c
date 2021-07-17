@@ -1,12 +1,17 @@
 //
 // Created by MattWood on 15/07/2021.
 //
+/**************************** LIB INCLUDES ******************************/
+/**************************** USER INCLUDES *****************************/
 
 #include "led.h"
 #include "driver/ledc.h"
 
+/******************************* DEFINES ********************************/
 
 #define LED_CHANNEL_MAX 3
+
+/***************************** STRUCTURES *******************************/
 
 typedef enum {
     led_CHANNEL_RED,
@@ -14,9 +19,13 @@ typedef enum {
     led_CHANNEL_BLUE
 } led_channel_e;
 
+/************************** FUNCTION PROTOTYPES *************************/
+
 bool led_setBrightness(led_channel_e channel, uint16_t brightness, uint16_t fadeTime, bool waitUntilComplete);
 
-const ledc_channel_config_t led_channels[LED_CHANNEL_MAX] = {
+/******************************* CONSTANTS ******************************/
+
+static const ledc_channel_config_t led_channels[LED_CHANNEL_MAX] = {
         [led_CHANNEL_RED] = {
                 .channel    = LEDC_CHANNEL_0,
                 .duty       = 0,
@@ -45,6 +54,9 @@ const ledc_channel_config_t led_channels[LED_CHANNEL_MAX] = {
                 .flags.output_invert = PINMAP_LED_INVERTED
         }
 };
+
+/******************************* VARIABLES ******************************/
+/*************************** PUBLIC FUNCTIONS ***************************/
 
 bool led_init(void)
 {
@@ -87,18 +99,32 @@ void led_pretty_light_pattern(void)
 
 bool led_setBrightness(led_channel_e channel, uint16_t brightness, uint16_t fadeTime, bool waitUntilComplete)
 {
-    bool retVal = false;
-    brightness = MIN(brightness, LED_MAX_BRIGHTNESS);
-    if(fadeTime == 0)
+    bool retVal = true;
+    brightness = MIN( brightness, LED_MAX_BRIGHTNESS );
+    if (fadeTime == 0)
     {
-        ledc_set_duty(led_channels[channel].speed_mode, led_channels[channel].channel, brightness);
-        ledc_update_duty(led_channels[channel].speed_mode, led_channels[channel].channel);
-        retVal = true;
+        if (ESP_OK != ledc_set_duty( led_channels[channel].speed_mode, led_channels[channel].channel, brightness ))
+        {
+            retVal = false;
+        }
+        if (ESP_OK != ledc_update_duty( led_channels[channel].speed_mode, led_channels[channel].channel ))
+        {
+            retVal = false;
+        }
     }
     else
     {
-        ledc_set_fade_with_time(led_channels[channel].speed_mode, led_channels[channel].channel, brightness, fadeTime);
-        ledc_fade_start(led_channels[channel].speed_mode, led_channels[channel].channel, waitUntilComplete?LEDC_FADE_WAIT_DONE:LEDC_FADE_NO_WAIT);
+        if (ESP_OK !=
+            ledc_set_fade_with_time( led_channels[channel].speed_mode, led_channels[channel].channel, brightness, fadeTime ))
+        {
+            retVal = false;
+        }
+
+        if (ESP_OK != ledc_fade_start( led_channels[channel].speed_mode, led_channels[channel].channel,
+                                       waitUntilComplete ? LEDC_FADE_WAIT_DONE : LEDC_FADE_NO_WAIT ))
+        {
+            retVal = false;
+        }
         retVal = true;
     }
     return retVal;
