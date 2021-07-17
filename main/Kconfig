@@ -1,0 +1,73 @@
+menu "Power Monitor"
+
+    config PM_REAL_HARDWARE
+        bool "Using real hardware"
+        help
+            If this option is set to yes the pin mappings for the real hardware will be used, otherwise pins for the ESPHOME TH board will be used (this is for pre hardware software development)
+        default y
+
+    menu "Sampling"
+
+        config PM_SAMPLING_RATE_HZ
+            int "Sample rate in Hz"
+            help
+                This figure can be tuned such that the ISR routine duty cycle remains low enough to allow non time critical function to be performed
+            default 1000
+            range 200 2000
+
+        config PM_SAMPLING_PROCESSING_PERIOD_MS
+            int "Processing period in ms"
+            help
+                This sets the measurement granularity, this directly affects the buffer size required (in conjunction with the sample rate)
+            default 1000
+            range 100 10000
+
+        choice PM_SAMPLING_LINE_FREQUENCY
+            prompt "Line frequency"
+            default PM_SAMPLING_LINE_FREQUENCY_50HZ
+
+            config PM_SAMPLING_LINE_FREQUENCY_50HZ
+                bool "50Hz"
+            config PM_SAMPLING_LINE_FREQUENCY_60HZ
+                bool "60Hz"
+        endchoice
+
+        config PM_SAMPLING_CHANNEL_COUNT
+            int "The number of current channels to sample"
+            default 4
+            range 1 4
+
+        config PM_SAMPLING_NO_SUBSAMPLES
+            int "The number of sub samples per sample period"
+            default 3
+            range 1 5
+
+        config PM_SAMPLING_NO_BUFFERS
+            int "The number of sample block buffers to cycle between"
+            help
+                After a buffer has been filled it is sent for processing and the next buffer is used, adding more then 2 buffers is pointless
+            default 2
+            range 2 5
+
+        config PM_SAMPLING_ENABLE_TIMING_DIAGNOSTIC
+            bool "Enable timing measurement pin outputs"
+            help
+                This option enables the output of a signal which is high during the ISR and a different signal that is high during the data processing
+            default y
+
+    # End Sampling menu
+    endmenu
+
+    menu "Battery"
+
+        config PM_BATTERY_IS_BMS_FITTED
+            bool "Enable battery management (requires the XC6806 to be fitted and JP1 open)"
+            help
+                This should be turned off when JP1 is shorted
+            default y
+
+    # End Battery menu
+    endmenu
+
+# End Power Monitor menu
+endmenu

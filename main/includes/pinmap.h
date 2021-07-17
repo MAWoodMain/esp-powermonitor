@@ -8,7 +8,7 @@
 #include "driver/gpio.h"
 #include "driver/adc.h"
 
-#if REAL_HARDWARE
+#if CONFIG_PM_REAL_HARDWARE
 
 /* LED */
 #define PINMAP_LED_RED      GPIO_NUM_40
@@ -53,16 +53,17 @@
 /* Power monitor */
 #define PINMAP_PM_REF_ADC   ADC1_CHANNEL_5
 
-#define PINMAP_PM_V_SEN_ADC ADC1_CHANNEL_4
+#define PINMAP_PM_V_SEN_ADC ADC1_CHANNEL_1
 #define PINMAP_PM_V_PLUG    GPIO_NUM_21
 
 #define PINMAP_PM_CH1_ADC   ADC1_CHANNEL_1
-#define PINMAP_PM_CH2_ADC   ADC1_CHANNEL_0
-#define PINMAP_PM_CH3_ADC   ADC1_CHANNEL_3
-#define PINMAP_PM_CH4_ADC   ADC1_CHANNEL_2
+#define PINMAP_PM_CH2_ADC   ADC1_CHANNEL_1
+#define PINMAP_PM_CH3_ADC   ADC1_CHANNEL_1
+#define PINMAP_PM_CH4_ADC   ADC1_CHANNEL_1
 
 /* Diagnostics */
-#define PINMAP_ISR_TIMING   GPIO_NUM_2
+#define PINMAP_ISR_TIMING   GPIO_NUM_6
+#define PINMAP_TASK_TIMING  GPIO_NUM_7
 #endif
 
 #endif //PINMAP_H

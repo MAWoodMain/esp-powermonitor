@@ -4,25 +4,26 @@
 // Created by MattWood on 16/07/2021.
 //
 
+/**************************** LIB INCLUDES ******************************/
+/**************************** USER INCLUDES *****************************/
 #include "power_monitor.h"
 #include "driver/timer.h"
 #include "driver/adc.h"
 #include "esp_adc_cal.h"
 
-#define POWER_MONITOR_SAMPLING_FREQUENCY_HZ 1000
-#define POWER_MONITOR_PROCESSING_FREQUENCY_HZ 1
-#define POWER_MONITOR_NO_CURRENT_CHANNELS 4
-#define POWER_MONITOR_NO_SUBSAMPLES 3
-#define POWER_MONITOR_NO_BUFFERS 2
+/******************************* DEFINES ********************************/
+
+#define POWER_MONITOR_SAMPLES_PER_BLOCK (CONFIG_PM_SAMPLING_RATE_HZ * (CONFIG_PM_SAMPLING_PROCESSING_PERIOD_MS / 1000))
 
 #define TIMER_DIVIDER         (16)  //  Hardware timer clock divider
 #define TIMER_SCALE           (TIMER_BASE_CLK / TIMER_DIVIDER)  // convert counter value to seconds
 #define DEFAULT_VREF    1100        //Use adc2_vref_to_gpio() to obtain a better estimate
 
+/***************************** STRUCTURES *******************************/
 
 typedef struct
 {
-    uint16_t buffer[POWER_MONITOR_SAMPLING_FREQUENCY_HZ / POWER_MONITOR_PROCESSING_FREQUENCY_HZ][POWER_MONITOR_NO_CURRENT_CHANNELS + 1];
+    uint16_t buffer[POWER_MONITOR_SAMPLES_PER_BLOCK][CONFIG_PM_SAMPLING_CHANNEL_COUNT + 1];
     bool beingUsed;
 } power_monitor_sampleBuffer_t;
 
@@ -32,32 +33,51 @@ typedef struct
     uint32_t sampleTimestamp;
 } power_monitor_sampleNotification_t;
 
-static power_monitor_sampleBuffer_t power_monitor_sampleBuffers[POWER_MONITOR_NO_BUFFERS];
+/************************** FUNCTION PROTOTYPES *************************/
 
-static esp_adc_cal_characteristics_t *adc_chars;
-static const adc1_channel_t power_monitor_voltageChannel = PINMAP_PM_CH4_ADC;
-static const adc1_channel_t power_monitor_currentChannels[POWER_MONITOR_NO_CURRENT_CHANNELS] = { PINMAP_PM_CH4_ADC,
-                                                                                                 PINMAP_PM_CH4_ADC,
-                                                                                                 PINMAP_PM_CH4_ADC,
-                                                                                                 PINMAP_PM_CH4_ADC };
+static bool power_monitor_isr_callback(void *args);
+_Noreturn void power_monitor_task( void *pvParameters );
+static bool power_monitor_configurePins();
+static bool power_monitor_configureTimer();
 
+/******************************* CONSTANTS ******************************/
+
+static const adc1_channel_t power_monitor_voltageChannel = PINMAP_PM_V_SEN_ADC;
+static const adc1_channel_t power_monitor_currentChannels[CONFIG_PM_SAMPLING_CHANNEL_COUNT] =
+        { PINMAP_PM_CH1_ADC,
+#if CONFIG_PM_SAMPLING_CHANNEL_COUNT > 1
+          PINMAP_PM_CH2_ADC,
+#if CONFIG_PM_SAMPLING_CHANNEL_COUNT > 2
+          PINMAP_PM_CH3_ADC,
+#if CONFIG_PM_SAMPLING_CHANNEL_COUNT > 3
+          PINMAP_PM_CH4_ADC
+#endif
+#endif
+#endif
+        };
 static const char *TAG = "PM";
 static const adc_bits_width_t width = ADC_WIDTH_BIT_13;
-static const adc_atten_t atten = ADC_ATTEN_DB_0;
+static const adc_atten_t atten = ADC_ATTEN_DB_11;
 static const adc_unit_t unit = ADC_UNIT_1;
+
+/******************************* VARIABLES ******************************/
+
+static power_monitor_sampleBuffer_t power_monitor_sampleBuffers[CONFIG_PM_SAMPLING_NO_BUFFERS];
+
+static esp_adc_cal_characteristics_t *adc_chars;
+
 static volatile uint8_t power_monitor_bufferIndex = 0;
 static volatile uint32_t power_monitor_readingIndex = 0;
+
+static volatile uint16_t power_monitor_midPointCounts; /* This will be replaced with a measured value after each sample block */
 
 const size_t power_monitor_MessageBufferSizeBytes = 128;
 
 static MessageBufferHandle_t power_monitor_messageBufferHandle;
 static TaskHandle_t power_monitor_taskHandle;
 
+/*************************** PUBLIC FUNCTIONS ***************************/
 
-static bool power_monitor_isr_callback(void *args);
-_Noreturn void power_monitor_task( void *pvParameters );
-static bool power_monitor_configurePins();
-static bool power_monitor_configureTimer();
 
 bool power_monitor_init(void)
 {
@@ -99,10 +119,10 @@ bool power_monitor_init(void)
         }
 
         /* Clear buffers */
-        for(idx = 0; idx < POWER_MONITOR_NO_BUFFERS; idx++)
+        for(idx = 0; idx < CONFIG_PM_SAMPLING_NO_BUFFERS; idx++)
         {
             power_monitor_sampleBuffers[idx].beingUsed = false;
-            memset(power_monitor_sampleBuffers[idx].buffer, 0, sizeof(uint16_t)*(POWER_MONITOR_SAMPLING_FREQUENCY_HZ / POWER_MONITOR_PROCESSING_FREQUENCY_HZ)*(POWER_MONITOR_NO_CURRENT_CHANNELS + 1));
+            memset(power_monitor_sampleBuffers[idx].buffer, 0, sizeof(uint16_t)*(POWER_MONITOR_SAMPLES_PER_BLOCK)*(CONFIG_PM_SAMPLING_CHANNEL_COUNT + 1));
         }
 
         /* Starts the timer beginning sampling */
@@ -118,27 +138,31 @@ bool power_monitor_init(void)
     return retVal;
 }
 
+/*************************** PRIVATE FUNCTIONS **************************/
+
 static bool IRAM_ATTR power_monitor_isr_callback(void* args)
 {
+#if CONFIG_PM_SAMPLING_ENABLE_TIMING_DIAGNOSTIC
     gpio_set_level( PINMAP_ISR_TIMING, 1 );
+#endif /* CONFIG_PM_SAMPLING_ENABLE_TIMING_DIAGNOSTIC */
     uint8_t sampleIdx;
     uint8_t channelIdx;
 
     power_monitor_sampleBuffers[power_monitor_bufferIndex].beingUsed = true;
 
     /* Sample voltage channel */
-    for (sampleIdx = 0; sampleIdx < POWER_MONITOR_NO_SUBSAMPLES; sampleIdx++)
+    for (sampleIdx = 0; sampleIdx < CONFIG_PM_SAMPLING_NO_SUBSAMPLES; sampleIdx++)
     {
         power_monitor_sampleBuffers[power_monitor_bufferIndex].buffer[power_monitor_readingIndex][0] += adc1_get_raw(
                 power_monitor_voltageChannel );
     }
     /* Divide for mean */
-    power_monitor_sampleBuffers[power_monitor_bufferIndex].buffer[power_monitor_readingIndex][0] /= POWER_MONITOR_NO_SUBSAMPLES;
+    power_monitor_sampleBuffers[power_monitor_bufferIndex].buffer[power_monitor_readingIndex][0] /= CONFIG_PM_SAMPLING_NO_SUBSAMPLES;
 
-    for (channelIdx = 0; channelIdx < POWER_MONITOR_NO_CURRENT_CHANNELS; channelIdx++)
+    for (channelIdx = 0; channelIdx < CONFIG_PM_SAMPLING_CHANNEL_COUNT; channelIdx++)
     {
         /* Sample each current channel */
-        for (sampleIdx = 0; sampleIdx < POWER_MONITOR_NO_SUBSAMPLES; sampleIdx++)
+        for (sampleIdx = 0; sampleIdx < CONFIG_PM_SAMPLING_NO_SUBSAMPLES; sampleIdx++)
         {
             power_monitor_sampleBuffers[power_monitor_bufferIndex].buffer[power_monitor_readingIndex][1 +
                                                                                                       channelIdx] += adc1_get_raw(
@@ -146,22 +170,25 @@ static bool IRAM_ATTR power_monitor_isr_callback(void* args)
         }
         /* Divide for mean */
         power_monitor_sampleBuffers[power_monitor_bufferIndex].buffer[power_monitor_readingIndex][1 +
-                                                                                                  channelIdx] /= POWER_MONITOR_NO_SUBSAMPLES;
+                                                                                                  channelIdx] /= CONFIG_PM_SAMPLING_NO_SUBSAMPLES;
     }
 
     power_monitor_readingIndex++;
-    power_monitor_readingIndex %= POWER_MONITOR_SAMPLING_FREQUENCY_HZ / POWER_MONITOR_PROCESSING_FREQUENCY_HZ;
+    power_monitor_readingIndex %= POWER_MONITOR_SAMPLES_PER_BLOCK;
     if (power_monitor_readingIndex == 0)
     {
+        /* TODO: measure mid point reference between sample blocks */
+        power_monitor_midPointCounts = 3229;
+
         power_monitor_sampleNotification_t notification;
         power_monitor_sampleBuffers[power_monitor_bufferIndex].beingUsed = false;
         notification.sampleBuffer = &power_monitor_sampleBuffers[power_monitor_bufferIndex];
         notification.sampleTimestamp = pdTICKS_TO_MS(xTaskGetTickCount());
         power_monitor_bufferIndex++;
-        power_monitor_bufferIndex %= POWER_MONITOR_NO_BUFFERS;
+        power_monitor_bufferIndex %= CONFIG_PM_SAMPLING_NO_BUFFERS;
         memset( power_monitor_sampleBuffers[power_monitor_bufferIndex].buffer, 0,
-                sizeof( uint16_t ) * ( POWER_MONITOR_SAMPLING_FREQUENCY_HZ / POWER_MONITOR_PROCESSING_FREQUENCY_HZ ) *
-                ( POWER_MONITOR_NO_CURRENT_CHANNELS + 1 ) );
+                sizeof( uint16_t ) * ( POWER_MONITOR_SAMPLES_PER_BLOCK ) *
+                ( CONFIG_PM_SAMPLING_CHANNEL_COUNT + 1 ) );
 
         BaseType_t xHigherPriorityTaskWoken = pdFALSE; /* Initialised to pdFALSE. */
 
@@ -173,7 +200,9 @@ static bool IRAM_ATTR power_monitor_isr_callback(void* args)
 
         portYIELD_FROM_ISR( xHigherPriorityTaskWoken );
     }
+#if CONFIG_PM_SAMPLING_ENABLE_TIMING_DIAGNOSTIC
     gpio_set_level( PINMAP_ISR_TIMING, 0 );
+#endif /* CONFIG_PM_SAMPLING_ENABLE_TIMING_DIAGNOSTIC */
 
     return true;
 }
@@ -190,11 +219,21 @@ _Noreturn void power_monitor_task( void *pvParameters )
                                        portMAX_DELAY )
                 )
         {
+#if CONFIG_PM_SAMPLING_ENABLE_TIMING_DIAGNOSTIC
+            gpio_set_level(PINMAP_TASK_TIMING, 1);
+#endif /* CONFIG_PM_SAMPLING_ENABLE_TIMING_DIAGNOSTIC */
             /* Got a message */
             ESP_LOGI( TAG, "GOT A MESSAGE! timestamp: %d, sample: %d, %d, %d", notification.sampleTimestamp,
                       notification.sampleBuffer->buffer[128][0], notification.sampleBuffer->buffer[256][0], notification.sampleBuffer->buffer[512][0] );
+            for(uint16_t idx = 0; idx < 100; idx++)
+            {
+                printf("%d,%d\n\r", idx, notification.sampleBuffer->buffer[idx][0]);
+            }
 
         }
+#if CONFIG_PM_SAMPLING_ENABLE_TIMING_DIAGNOSTIC
+        gpio_set_level(PINMAP_TASK_TIMING, 0);
+#endif /* CONFIG_PM_SAMPLING_ENABLE_TIMING_DIAGNOSTIC */
     }
 
     vTaskDelete( NULL );
@@ -204,11 +243,12 @@ bool power_monitor_configurePins()
 {
     bool retVal = true;
     uint8_t idx;
+#if CONFIG_PM_SAMPLING_ENABLE_TIMING_DIAGNOSTIC
     /* Setup GPIO for timing measurements */
     gpio_config_t io_conf;
     io_conf.intr_type = GPIO_INTR_DISABLE;
     io_conf.mode = GPIO_MODE_OUTPUT;
-    io_conf.pin_bit_mask = BIT(PINMAP_ISR_TIMING);
+    io_conf.pin_bit_mask = BIT(PINMAP_ISR_TIMING) | BIT(PINMAP_TASK_TIMING);
     io_conf.pull_down_en = 0;
     io_conf.pull_up_en = 0;
     if(ESP_OK != gpio_config(&io_conf))
@@ -218,7 +258,8 @@ bool power_monitor_configurePins()
     }
     /* Set to initially low */
     gpio_set_level(PINMAP_ISR_TIMING, 0);
-
+    gpio_set_level(PINMAP_TASK_TIMING, 0);
+#endif /* CONFIG_PM_SAMPLING_ENABLE_TIMING_DIAGNOSTIC */
 
 
     if(ESP_OK != adc1_config_width(width))
@@ -233,7 +274,7 @@ bool power_monitor_configurePins()
         retVal = false;
     }
 
-    for(idx = 0; idx < POWER_MONITOR_NO_CURRENT_CHANNELS; idx++)
+    for(idx = 0; idx < CONFIG_PM_SAMPLING_CHANNEL_COUNT; idx++)
     {
         if(ESP_OK != adc1_config_channel_atten(power_monitor_currentChannels[idx], atten))
         {
@@ -274,7 +315,7 @@ bool power_monitor_configureTimer()
     }
 
     /* Configure the alarm value and the interrupt on alarm. */
-    if(ESP_OK != timer_set_alarm_value(TIMER_GROUP_0, TIMER_0, ( TIMER_SCALE / POWER_MONITOR_SAMPLING_FREQUENCY_HZ)))
+    if(ESP_OK != timer_set_alarm_value(TIMER_GROUP_0, TIMER_0, ( TIMER_SCALE / CONFIG_PM_SAMPLING_RATE_HZ)))
     {
         ESP_LOGE(TAG, "Failed to set the timer alarm value");
         retVal = false;
