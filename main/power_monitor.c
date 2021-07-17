@@ -29,9 +29,29 @@ typedef struct
 
 typedef struct
 {
+    /* This is a pointer to the buffer storing the core readings */
     power_monitor_sampleBuffer_t *sampleBuffer;
+    /* This is the measured mid point value in counts */
+    uint16_t sampleZeroReferenceCounts;
+    /* This is the time since boot in ms for time referencing */
     uint32_t sampleTimestamp;
 } power_monitor_sampleNotification_t;
+
+typedef struct
+{
+    /* Voltage RMS */
+    float rmsV;
+    /* Current RMS */
+    float rmsI[CONFIG_PM_SAMPLING_CHANNEL_COUNT];
+    /* Real power RMS */
+    float rmsP[CONFIG_PM_SAMPLING_CHANNEL_COUNT];
+    /* Apparent power RMS */
+    float rmsVA[CONFIG_PM_SAMPLING_CHANNEL_COUNT];
+    /* Peak instantaneous power */
+    float peakP[CONFIG_PM_SAMPLING_CHANNEL_COUNT];
+    /* This is the time since boot in ms for time referencing */
+    uint32_t sampleTimestamp;
+} power_monitor_measurement_t;
 
 /************************** FUNCTION PROTOTYPES *************************/
 
@@ -102,7 +122,7 @@ bool power_monitor_init(void)
             break;
         }
 
-         xTaskCreate(power_monitor_task, "PM", 2048, NULL, 1, &power_monitor_taskHandle);
+         xTaskCreate(power_monitor_task, "PM", 8096, NULL, 1, &power_monitor_taskHandle);
         if( power_monitor_taskHandle == NULL )
         {
             ESP_LOGE(TAG, "Failed to create the processing task");
@@ -147,7 +167,6 @@ static bool IRAM_ATTR power_monitor_isr_callback(void* args)
 #endif /* CONFIG_PM_SAMPLING_ENABLE_TIMING_DIAGNOSTIC */
     uint8_t sampleIdx;
     uint8_t channelIdx;
-
     power_monitor_sampleBuffers[power_monitor_bufferIndex].beingUsed = true;
 
     /* Sample voltage channel */
@@ -177,10 +196,11 @@ static bool IRAM_ATTR power_monitor_isr_callback(void* args)
     power_monitor_readingIndex %= POWER_MONITOR_SAMPLES_PER_BLOCK;
     if (power_monitor_readingIndex == 0)
     {
-        /* TODO: measure mid point reference between sample blocks */
-        power_monitor_midPointCounts = 3229;
-
         power_monitor_sampleNotification_t notification;
+
+        /* TODO: measure mid point reference between sample blocks */
+        notification.sampleZeroReferenceCounts = 3229;
+
         power_monitor_sampleBuffers[power_monitor_bufferIndex].beingUsed = false;
         notification.sampleBuffer = &power_monitor_sampleBuffers[power_monitor_bufferIndex];
         notification.sampleTimestamp = pdTICKS_TO_MS(xTaskGetTickCount());
@@ -211,6 +231,12 @@ static bool IRAM_ATTR power_monitor_isr_callback(void* args)
 _Noreturn void power_monitor_task( void *pvParameters )
 {
     power_monitor_sampleNotification_t notification;
+    int32_t v, i, maxV, minV;
+    uint32_t sqV, sumV;
+    uint32_t sqI, sumI[POWER_MONITOR_SAMPLES_PER_BLOCK];
+    uint32_t sample, channel;
+    uint32_t offset;
+
     for( ;; )
     {
         if( 0 < xMessageBufferReceive( power_monitor_messageBufferHandle,
@@ -222,14 +248,55 @@ _Noreturn void power_monitor_task( void *pvParameters )
 #if CONFIG_PM_SAMPLING_ENABLE_TIMING_DIAGNOSTIC
             gpio_set_level(PINMAP_TASK_TIMING, 1);
 #endif /* CONFIG_PM_SAMPLING_ENABLE_TIMING_DIAGNOSTIC */
-            /* Got a message */
-            ESP_LOGI( TAG, "GOT A MESSAGE! timestamp: %d, sample: %d, %d, %d", notification.sampleTimestamp,
-                      notification.sampleBuffer->buffer[128][0], notification.sampleBuffer->buffer[256][0], notification.sampleBuffer->buffer[512][0] );
-            for(uint16_t idx = 0; idx < 100; idx++)
+            power_monitor_measurement_t measurement;
+
+
+            measurement.sampleTimestamp = notification.sampleTimestamp;
+
+            sumV = 0;
+            minV = 0;
+            maxV = 0;
+            for(channel = 0; channel < CONFIG_PM_SAMPLING_CHANNEL_COUNT; channel++)
             {
-                printf("%d,%d\n\r", idx, notification.sampleBuffer->buffer[idx][0]);
+                sumI[channel] = 0;
             }
 
+
+
+            offset = esp_adc_cal_raw_to_voltage(notification.sampleZeroReferenceCounts, adc_chars);
+            for(sample = 0; sample < POWER_MONITOR_SAMPLES_PER_BLOCK; sample++)
+            {
+                /* Convert to mV */
+                v = (int32_t) esp_adc_cal_raw_to_voltage(notification.sampleBuffer->buffer[sample][0], adc_chars );
+                /* Remove DC offset */
+                v -= (int32_t) offset;
+                if(v < minV) minV = v;
+                if(v > maxV) maxV = v;
+                sqV = v * v;
+                sumV += sqV;
+
+                for(channel = 0; channel < CONFIG_PM_SAMPLING_CHANNEL_COUNT; channel++)
+                {
+                    /* Remove zero offset and convert to mV */
+                    i = (int32_t) esp_adc_cal_raw_to_voltage(notification.sampleBuffer->buffer[sample][1 + channel], adc_chars );
+                    /* Remove DC offset */
+                    i -= (int32_t) offset;
+                    sqI = i * i;
+                    sumI[channel] += sqI;
+                }
+
+            }
+
+            measurement.rmsV = sqrtf((float)sumV/POWER_MONITOR_SAMPLES_PER_BLOCK);
+
+            for(channel = 0; channel < CONFIG_PM_SAMPLING_CHANNEL_COUNT; channel++)
+            {
+                measurement.rmsI[channel] = sqrtf((float)sumI[channel]/POWER_MONITOR_SAMPLES_PER_BLOCK);
+            }
+
+            ESP_LOGI( TAG, "Measurement ->\n\rV: %.3fmV (%dmV <-> %dmV)", measurement.rmsV,
+                      minV,
+                      maxV);
         }
 #if CONFIG_PM_SAMPLING_ENABLE_TIMING_DIAGNOSTIC
         gpio_set_level(PINMAP_TASK_TIMING, 0);
