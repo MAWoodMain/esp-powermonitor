@@ -9,6 +9,7 @@
 
 #define LED_MAX_BRIGHTNESS 255
 
+bool led_init(void);
 bool led_setLed(uint16_t red, uint16_t green, uint16_t blue, uint16_t fadeTime);
 void led_pretty_light_pattern(void);
 

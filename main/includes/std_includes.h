@@ -18,9 +18,11 @@
 #include "freertos/task.h"
 #include "freertos/queue.h"
 #include "freertos/semphr.h"
+#include "freertos/message_buffer.h"
 
 /* ESP-IDF */
 #include "sdkconfig.h"
+#include "esp_log.h"
 
 /* APP */
 #include "pinmap.h"

@@ -24,7 +24,7 @@ const ledc_channel_config_t led_channels[LED_CHANNEL_MAX] = {
                 .speed_mode = LEDC_LOW_SPEED_MODE,
                 .hpoint     = 0,
                 .timer_sel  = LEDC_TIMER_0,
-                .flags.output_invert = 1
+                .flags.output_invert = PINMAP_LED_INVERTED
         },
         [led_CHANNEL_GREEN] = {
                 .channel    = LEDC_CHANNEL_1,
@@ -33,7 +33,7 @@ const ledc_channel_config_t led_channels[LED_CHANNEL_MAX] = {
                 .speed_mode = LEDC_LOW_SPEED_MODE,
                 .hpoint     = 0,
                 .timer_sel  = LEDC_TIMER_0,
-                .flags.output_invert = 1
+                .flags.output_invert = PINMAP_LED_INVERTED
         },
         [led_CHANNEL_BLUE] = {
                 .channel    = LEDC_CHANNEL_2,
@@ -42,7 +42,7 @@ const ledc_channel_config_t led_channels[LED_CHANNEL_MAX] = {
                 .speed_mode = LEDC_LOW_SPEED_MODE,
                 .hpoint     = 0,
                 .timer_sel  = LEDC_TIMER_0,
-                .flags.output_invert = 1
+                .flags.output_invert = PINMAP_LED_INVERTED
         }
 };
 

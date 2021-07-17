@@ -1,3 +1,4 @@
+#include <sys/cdefs.h>
 /* Hello World Example
 
    This example code is in the Public Domain (or CC0 licensed, at your option.)
@@ -10,9 +11,12 @@
 #include "esp_system.h"
 #include "esp_spi_flash.h"
 #include "led.h"
+#include "power_monitor.h"
 
-void app_main(void)
+_Noreturn void app_main(void)
 {
+    led_init();
+    power_monitor_init();
     led_pretty_light_pattern();
     printf("Hello world!\n");
 
@@ -32,11 +36,7 @@ void app_main(void)
 
     printf("Minimum free heap size: %d bytes\n", esp_get_minimum_free_heap_size());
 
-    for (int i = 10; i >= 0; i--) {
-        printf("Restarting in %d seconds...\n", i);
+    for (;;) {
         vTaskDelay(1000 / portTICK_PERIOD_MS);
     }
-    printf("Restarting now.\n");
-    fflush(stdout);
-    esp_restart();
 }
