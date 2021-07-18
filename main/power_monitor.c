@@ -41,6 +41,8 @@ typedef struct
 {
     /* Voltage RMS */
     float rmsV;
+    /* Average frequency */
+    float frequency;
     /* Current RMS */
     float rmsI[CONFIG_PM_SAMPLING_CHANNEL_COUNT];
     /* Real power RMS */
@@ -122,7 +124,7 @@ bool power_monitor_init(void)
             break;
         }
 
-         xTaskCreate(power_monitor_task, "PM", 8096, NULL, 1, &power_monitor_taskHandle);
+         xTaskCreate(power_monitor_task, "PM", 4096, NULL, 1, &power_monitor_taskHandle);
         if( power_monitor_taskHandle == NULL )
         {
             ESP_LOGE(TAG, "Failed to create the processing task");
@@ -231,11 +233,10 @@ static bool IRAM_ATTR power_monitor_isr_callback(void* args)
 _Noreturn void power_monitor_task( void *pvParameters )
 {
     power_monitor_sampleNotification_t notification;
-    int32_t v, i, maxV, minV;
+    int32_t v, lastV, i, maxV, minV, maxI[CONFIG_PM_SAMPLING_CHANNEL_COUNT], minI[CONFIG_PM_SAMPLING_CHANNEL_COUNT];
     uint32_t sqV, sumV;
-    uint32_t sqI, sumI[POWER_MONITOR_SAMPLES_PER_BLOCK];
-    uint32_t sample, channel;
-    uint32_t offset;
+    uint32_t sqI, sumI[CONFIG_PM_SAMPLING_CHANNEL_COUNT];
+    uint32_t sample, channel, offset, lastPositiveCrossingIdx, positiveCrossings, sumCrossingPeriod;
 
     for( ;; )
     {
@@ -256,11 +257,16 @@ _Noreturn void power_monitor_task( void *pvParameters )
             sumV = 0;
             minV = 0;
             maxV = 0;
+            lastV = 0;
+            lastPositiveCrossingIdx = 0;
+            positiveCrossings = 0;
+            sumCrossingPeriod = 0;
             for(channel = 0; channel < CONFIG_PM_SAMPLING_CHANNEL_COUNT; channel++)
             {
+                minI[channel] = 0;
+                maxI[channel] = 0;
                 sumI[channel] = 0;
             }
-
 
 
             offset = esp_adc_cal_raw_to_voltage(notification.sampleZeroReferenceCounts, adc_chars);
@@ -270,6 +276,20 @@ _Noreturn void power_monitor_task( void *pvParameters )
                 v = (int32_t) esp_adc_cal_raw_to_voltage(notification.sampleBuffer->buffer[sample][0], adc_chars );
                 /* Remove DC offset */
                 v -= (int32_t) offset;
+
+                if(sample != 0)
+                {
+                    if((lastV < 0) && (v >= 0))
+                    {
+                        if(lastPositiveCrossingIdx != 0)
+                        {
+                            sumCrossingPeriod += sample-lastPositiveCrossingIdx;
+                            positiveCrossings++;
+                        }
+                        lastPositiveCrossingIdx = sample;
+                    }
+                }
+                lastV = v;
                 if(v < minV) minV = v;
                 if(v > maxV) maxV = v;
                 sqV = v * v;
@@ -281,6 +301,8 @@ _Noreturn void power_monitor_task( void *pvParameters )
                     i = (int32_t) esp_adc_cal_raw_to_voltage(notification.sampleBuffer->buffer[sample][1 + channel], adc_chars );
                     /* Remove DC offset */
                     i -= (int32_t) offset;
+                    if(i < minI[channel]) minI[channel] = i;
+                    if(i > maxI[channel]) maxI[channel] = i;
                     sqI = i * i;
                     sumI[channel] += sqI;
                 }
@@ -288,15 +310,36 @@ _Noreturn void power_monitor_task( void *pvParameters )
             }
 
             measurement.rmsV = sqrtf((float)sumV/POWER_MONITOR_SAMPLES_PER_BLOCK);
+            measurement.frequency = CONFIG_PM_SAMPLING_RATE_HZ/((float)sumCrossingPeriod/(float)positiveCrossings);
+            ESP_LOGI(TAG, "SUM: %d, crossings: %d", sumCrossingPeriod, positiveCrossings);
 
             for(channel = 0; channel < CONFIG_PM_SAMPLING_CHANNEL_COUNT; channel++)
             {
                 measurement.rmsI[channel] = sqrtf((float)sumI[channel]/POWER_MONITOR_SAMPLES_PER_BLOCK);
             }
 
-            ESP_LOGI( TAG, "Measurement ->\n\rV: %.3fmV (%dmV <-> %dmV)", measurement.rmsV,
-                      minV,
-                      maxV);
+            ESP_LOGI( TAG, "Measurement ->\n\r\tV:\t\t%.3f mV (%dmV <-> % dmV)\n\r\tFreq:\t%.2f Hz\n\r\tI[0]:\t%.3f mV (%d mV <-> %d mV)"
+#if CONFIG_PM_SAMPLING_CHANNEL_COUNT > 1
+                           "\n\r\tI[1]:\t%.3f mV (%d mV <-> %d mV)"
+#if CONFIG_PM_SAMPLING_CHANNEL_COUNT > 2
+                           "\n\r\tI[2]:\t%.3f mV (%d mV <-> %d mV)"
+#if CONFIG_PM_SAMPLING_CHANNEL_COUNT > 3
+                           "\n\r\tI[3]:\t%.3f mV (%d mV <-> %d mV)"
+#endif
+#endif
+#endif
+                      ,measurement.rmsV, minV, maxV, measurement.frequency,
+                      measurement.rmsI[0], minI[0], maxI[0]
+#if CONFIG_PM_SAMPLING_CHANNEL_COUNT > 1
+                      ,measurement.rmsI[1], minI[1], maxI[1]
+#if CONFIG_PM_SAMPLING_CHANNEL_COUNT > 2
+                      ,measurement.rmsI[2], minI[2], maxI[2]
+#if CONFIG_PM_SAMPLING_CHANNEL_COUNT > 3
+                      ,measurement.rmsI[3], minI[3], maxI[3]
+#endif
+#endif
+#endif
+                      );
         }
 #if CONFIG_PM_SAMPLING_ENABLE_TIMING_DIAGNOSTIC
         gpio_set_level(PINMAP_TASK_TIMING, 0);
