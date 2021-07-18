@@ -37,24 +37,6 @@ typedef struct
     uint32_t sampleTimestamp;
 } power_monitor_sampleNotification_t;
 
-typedef struct
-{
-    /* Voltage RMS */
-    float rmsV;
-    /* Average frequency */
-    float frequency;
-    /* Current RMS */
-    float rmsI[CONFIG_PM_SAMPLING_CHANNEL_COUNT];
-    /* Real power RMS */
-    float rmsP[CONFIG_PM_SAMPLING_CHANNEL_COUNT];
-    /* Apparent power RMS */
-    float rmsVA[CONFIG_PM_SAMPLING_CHANNEL_COUNT];
-    /* Peak instantaneous power */
-    float peakP[CONFIG_PM_SAMPLING_CHANNEL_COUNT];
-    /* This is the time since boot in ms for time referencing */
-    uint32_t sampleTimestamp;
-} power_monitor_measurement_t;
-
 /************************** FUNCTION PROTOTYPES *************************/
 
 static bool power_monitor_isr_callback(void *args);
@@ -93,9 +75,11 @@ static volatile uint32_t power_monitor_readingIndex = 0;
 
 static volatile uint16_t power_monitor_midPointCounts; /* This will be replaced with a measured value after each sample block */
 
-const size_t power_monitor_MessageBufferSizeBytes = 128;
+const size_t power_monitor_rawMessageBufferSizeBytes = 128;
+const size_t power_monitor_measurementMessageBufferSizeBytes = 512;
 
-static MessageBufferHandle_t power_monitor_messageBufferHandle;
+static MessageBufferHandle_t power_monitor_rawMessageBufferHandle;
+static MessageBufferHandle_t power_monitor_measurementMessageBufferHandle;
 static TaskHandle_t power_monitor_taskHandle;
 
 /*************************** PUBLIC FUNCTIONS ***************************/
@@ -116,10 +100,17 @@ bool power_monitor_init(void)
         }
 
         /* Clear the message buffer for ISR to task processing calls */
-        power_monitor_messageBufferHandle = xMessageBufferCreate( power_monitor_MessageBufferSizeBytes );
-        if( power_monitor_messageBufferHandle == NULL )
+        power_monitor_rawMessageBufferHandle = xMessageBufferCreate( power_monitor_rawMessageBufferSizeBytes );
+        if(power_monitor_rawMessageBufferHandle == NULL )
         {
-            ESP_LOGE(TAG, "Failed to create message buffer");
+            ESP_LOGE(TAG, "Failed to create raw message buffer");
+            retVal = false;
+            break;
+        }
+        power_monitor_measurementMessageBufferHandle = xMessageBufferCreate( power_monitor_measurementMessageBufferSizeBytes );
+        if(power_monitor_measurementMessageBufferHandle == NULL )
+        {
+            ESP_LOGE(TAG, "Failed to create measurement message buffer");
             retVal = false;
             break;
         }
@@ -158,6 +149,11 @@ bool power_monitor_init(void)
     } while(false);
 
     return retVal;
+}
+
+MessageBufferHandle_t power_monitor_getOutputMessageHandle(void)
+{
+    return power_monitor_measurementMessageBufferHandle;
 }
 
 /*************************** PRIVATE FUNCTIONS **************************/
@@ -215,7 +211,7 @@ static bool IRAM_ATTR power_monitor_isr_callback(void* args)
         BaseType_t xHigherPriorityTaskWoken = pdFALSE; /* Initialised to pdFALSE. */
 
         /* Attempt to send the string to the message buffer. */
-        xMessageBufferSendFromISR( power_monitor_messageBufferHandle,
+        xMessageBufferSendFromISR( power_monitor_rawMessageBufferHandle,
                                    (void*) &notification,
                                    sizeof(notification),
                                    &xHigherPriorityTaskWoken );
@@ -240,7 +236,7 @@ _Noreturn void power_monitor_task( void *pvParameters )
 
     for( ;; )
     {
-        if( 0 < xMessageBufferReceive( power_monitor_messageBufferHandle,
+        if( 0 < xMessageBufferReceive( power_monitor_rawMessageBufferHandle,
                                        ( void * ) &notification,
                                        sizeof( notification ),
                                        portMAX_DELAY )
@@ -340,6 +336,11 @@ _Noreturn void power_monitor_task( void *pvParameters )
 #endif
 #endif
                       );
+            xMessageBufferSend( power_monitor_measurementMessageBufferHandle,
+                                       (void*) &measurement,
+                                       sizeof(measurement),
+                                pdMS_TO_TICKS(100)
+            );
         }
 #if CONFIG_PM_SAMPLING_ENABLE_TIMING_DIAGNOSTIC
         gpio_set_level(PINMAP_TASK_TIMING, 0);
@@ -358,7 +359,7 @@ bool power_monitor_configurePins()
     gpio_config_t io_conf;
     io_conf.intr_type = GPIO_INTR_DISABLE;
     io_conf.mode = GPIO_MODE_OUTPUT;
-    io_conf.pin_bit_mask = BIT(PINMAP_ISR_TIMING) | BIT(PINMAP_TASK_TIMING);
+    io_conf.pin_bit_mask = BIT(PINMAP_ISR_TIMING) | BIT(PINMAP_TASK_TIMING) | BIT(PINMAP_TRANSMIT_TIMING);
     io_conf.pull_down_en = 0;
     io_conf.pull_up_en = 0;
     if(ESP_OK != gpio_config(&io_conf))
@@ -369,6 +370,7 @@ bool power_monitor_configurePins()
     /* Set to initially low */
     gpio_set_level(PINMAP_ISR_TIMING, 0);
     gpio_set_level(PINMAP_TASK_TIMING, 0);
+    gpio_set_level(PINMAP_TRANSMIT_TIMING, 0);
 #endif /* CONFIG_PM_SAMPLING_ENABLE_TIMING_DIAGNOSTIC */
 
 

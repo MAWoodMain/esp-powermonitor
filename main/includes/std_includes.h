@@ -22,6 +22,7 @@
 #include "freertos/queue.h"
 #include "freertos/semphr.h"
 #include "freertos/message_buffer.h"
+#include "freertos/event_groups.h"
 
 /* ESP-IDF */
 #include "sdkconfig.h"

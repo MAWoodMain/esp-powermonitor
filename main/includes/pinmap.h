@@ -67,6 +67,7 @@
 /* Diagnostics */
 #define PINMAP_ISR_TIMING   GPIO_NUM_6
 #define PINMAP_TASK_TIMING  GPIO_NUM_7
+#define PINMAP_TRANSMIT_TIMING  GPIO_NUM_8
 
 #endif
 
