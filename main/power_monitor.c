@@ -339,7 +339,7 @@ _Noreturn void power_monitor_task( void *pvParameters )
             {
                 measurement.rmsI[channel] = sqrtf((float)sumI[channel]/POWER_MONITOR_SAMPLES_PER_BLOCK);
             }
-
+#if CONFIG_PM_PRINT_ENABLE
             ESP_LOGI( TAG, "Measurement ->\n\r\tV:\t\t%.3f V (%.2fV <-> %.2fV)\n\r\tFreq:\t%.2f Hz\n\r\tI[0]:\t%.3f mV (%d mV <-> %d mV)"
 #if CONFIG_PM_SAMPLING_CHANNEL_COUNT > 1
                            "\n\r\tI[1]:\t%.3f mV (%d mV <-> %d mV)"
@@ -362,6 +362,7 @@ _Noreturn void power_monitor_task( void *pvParameters )
 #endif
 #endif
                       );
+#endif
             xMessageBufferSend( power_monitor_measurementMessageBufferHandle,
                                        (void*) &measurement,
                                        sizeof(measurement),

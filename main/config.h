@@ -2,20 +2,27 @@
 // Created by MattWood on 21/07/2021.
 //
 
-#ifndef WIFI_H
-#define WIFI_H
+#ifndef CONFIG_H
+#define CONFIG_H
 
 /**************************** LIB INCLUDES ******************************/
 /**************************** USER INCLUDES *****************************/
 #include "std_includes.h"
 /******************************* DEFINES ********************************/
 /******************************** ENUMS *********************************/
+typedef enum
+{
+    CONFIG_STRING_FIELD_WIFI_SSID,
+    CONFIG_STRING_FIELD_WIFI_PASSWORD,
+    CONFIG_STRING_FIELD_MQTT_URI,
+    CONFIG_STRING_FIELD_MQTT_USERNAME,
+    CONFIG_STRING_FIELD_MQTT_PASSWORD,
+    CONFIG_STRING_FIELD_MAX
+} config_string_field_e;
 /****************************** TYPEDEFS ********************************/
 /***************************** STRUCTURES *******************************/
 /************************** FUNCTION PROTOTYPES *************************/
-bool wifi_init(void);
-bool wifi_connect();
-bool wifi_switchToSoftAP();
-bool wifi_waitForConnection(uint32_t timeoutMs);
+bool config_init();
+char* config_getStringField(config_string_field_e field);
 /******************************* GLOBALS ********************************/
-#endif /* WIFI_H */
+#endif /* CONFIG_H */

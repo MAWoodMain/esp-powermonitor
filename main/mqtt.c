@@ -6,7 +6,7 @@
 /**************************** USER INCLUDES *****************************/
 #include "mqtt.h"
 #include "mqtt_client.h"
-#include "secrets.h"
+#include "config.h"
 /******************************* DEFINES ********************************/
 #define MQTT_CONNECTED_BIT BIT0
 /***************************** STRUCTURES *******************************/
@@ -25,9 +25,9 @@ bool mqtt_init(void)
     mqtt_event_group = xEventGroupCreate();
 
     esp_mqtt_client_config_t mqtt_cfg = {
-            .uri = MQTT_HOSTNAME,
-            .username = MQTT_USERNAME,
-            .password = MQTT_PASSWORD
+            .uri = config_getStringField( CONFIG_STRING_FIELD_MQTT_URI),
+            .username = config_getStringField( CONFIG_STRING_FIELD_MQTT_USERNAME),
+            .password = config_getStringField( CONFIG_STRING_FIELD_MQTT_PASSWORD)
     };
     mqtt_client = esp_mqtt_client_init(&mqtt_cfg);
     /* The last argument may be used to pass data to the event handler, in this example mqtt_event_handler */

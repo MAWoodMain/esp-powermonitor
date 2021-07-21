@@ -7,7 +7,7 @@
 #include "wifi.h"
 #include "esp_wifi.h"
 #include "esp_event.h"
-#include "secrets.h"
+#include "config.h"
 /******************************* DEFINES ********************************/
 #define WIFI_CONNECTED_BIT BIT0
 #define WIFI_FAIL_BIT      BIT1
@@ -50,8 +50,6 @@ bool wifi_init(void)
 
     wifi_config_t wifi_config = {
             .sta = {
-                    .ssid = WIFI_SSID,
-                    .password = WIFI_PASSWORD,
                     /* Setting a password implies station will connect to all security modes including WEP/WPA.
                      * However these modes are deprecated and not advisable to be used. Incase your Access point
                      * doesn't support WPA2, these mode can be enabled by commenting below line */
@@ -63,6 +61,10 @@ bool wifi_init(void)
                     },
             },
     };
+    memset(wifi_config.sta.ssid, 0, sizeof(wifi_config.sta.ssid));
+    strcpy((char*)wifi_config.sta.ssid, config_getStringField(CONFIG_STRING_FIELD_WIFI_SSID));
+    memset(wifi_config.sta.password, 0, sizeof(wifi_config.sta.password));
+    strcpy((char*)wifi_config.sta.password, config_getStringField(CONFIG_STRING_FIELD_WIFI_PASSWORD));
     ESP_ERROR_CHECK(esp_wifi_set_mode(WIFI_MODE_STA) );
     ESP_ERROR_CHECK(esp_wifi_set_config(WIFI_IF_STA, &wifi_config) );
     /* TODO: check for errors */
@@ -72,6 +74,32 @@ bool wifi_init(void)
 bool wifi_connect()
 {
     return ESP_OK == esp_wifi_start();
+}
+
+bool wifi_switchToSoftAP()
+{
+    esp_wifi_stop();
+    esp_netif_create_default_wifi_ap();
+    wifi_init_config_t cfg = WIFI_INIT_CONFIG_DEFAULT();
+    ESP_ERROR_CHECK(esp_wifi_init(&cfg));
+    wifi_config_t wifi_config = {
+            .ap = {
+                    .ssid = "ESP_AP",
+                    .ssid_len = strlen("ESP_AP"),
+                    .channel = 1,
+                    .password = "testpass",
+                    .max_connection = 4,
+                    .authmode = WIFI_AUTH_WPA_WPA2_PSK
+            },
+    };
+    if (strlen("testpass") == 0) {
+        wifi_config.ap.authmode = WIFI_AUTH_OPEN;
+    }
+
+    ESP_ERROR_CHECK(esp_wifi_set_mode(WIFI_MODE_AP));
+    ESP_ERROR_CHECK(esp_wifi_set_config(WIFI_IF_AP, &wifi_config));
+    /* TODO: check for errors */
+    return true;
 }
 
 bool wifi_waitForConnection(uint32_t timeoutMs)

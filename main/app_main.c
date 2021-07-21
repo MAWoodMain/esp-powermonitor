@@ -14,6 +14,7 @@
 #include "web_server.h"
 #include "wifi.h"
 #include "mqtt.h"
+#include "config.h"
 
 /******************************* DEFINES ********************************/
 /***************************** STRUCTURES *******************************/
@@ -35,6 +36,7 @@ _Noreturn void app_main(void)
     }
     ESP_ERROR_CHECK(ret);
     led_init();
+    config_init();
     power_monitor_init();
     wifi_init();
     wifi_connect();
@@ -43,9 +45,10 @@ _Noreturn void app_main(void)
         web_server_init();
         mqtt_init();
         mqtt_connect();
-        if(wifi_waitForConnection(portMAX_DELAY))
+        if(mqtt_waitForConnection(portMAX_DELAY))
         {
             led_pretty_light_pattern();
+
             for (;;) {
                 if( 0 < xMessageBufferReceive( power_monitor_getOutputMessageHandle(),
                                                ( void * ) &measurement,
@@ -83,6 +86,16 @@ _Noreturn void app_main(void)
                 //esp_task_wdt_reset();
             }
         }
+    }
+    else
+    {
+        /* wifi connect failed, enable AP mode so the real wifi can be configured */
+        wifi_switchToSoftAP();
+        wifi_connect();
+        web_server_init();
+        /* after 10 minutes give up and restart */
+        vTaskDelay(600000 / portTICK_PERIOD_MS);
+        esp_restart();
     }
 
     for(;;)
