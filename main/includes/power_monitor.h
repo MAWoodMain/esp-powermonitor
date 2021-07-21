@@ -12,11 +12,20 @@
 
 /******************************* DEFINES ********************************/
 /******************************** ENUMS *********************************/
+
+typedef enum
+{
+    PM_CONDITION_OK,
+    PM_CONDITION_NO_VOLTAGE,
+    PM_CONDITION_BAD_FREQUENCY
+} power_monitor_measurement_condition_e;
 /****************************** TYPEDEFS ********************************/
 /***************************** STRUCTURES *******************************/
 
 typedef struct
 {
+    /* Measurement condition */
+    power_monitor_measurement_condition_e condition;
     /* Voltage RMS */
     float rmsV;
     /* Average frequency */

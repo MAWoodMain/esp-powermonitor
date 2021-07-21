@@ -19,6 +19,8 @@
 #define TIMER_SCALE           (TIMER_BASE_CLK / TIMER_DIVIDER)  // convert counter value to seconds
 #define DEFAULT_VREF    1100        //Use adc2_vref_to_gpio() to obtain a better estimate
 
+#define PM_V_SCALE_FACTOR 0.34874f
+
 /***************************** STRUCTURES *******************************/
 
 typedef struct
@@ -197,7 +199,7 @@ static bool IRAM_ATTR power_monitor_isr_callback(void* args)
         power_monitor_sampleNotification_t notification;
 
         /* TODO: measure mid point reference between sample blocks */
-        notification.sampleZeroReferenceCounts = 3229;
+        notification.sampleZeroReferenceCounts = adc1_get_raw(ADC1_CHANNEL_5);
 
         power_monitor_sampleBuffers[power_monitor_bufferIndex].beingUsed = false;
         notification.sampleBuffer = &power_monitor_sampleBuffers[power_monitor_bufferIndex];
@@ -232,7 +234,7 @@ _Noreturn void power_monitor_task( void *pvParameters )
     int32_t v, lastV, i, maxV, minV, maxI[CONFIG_PM_SAMPLING_CHANNEL_COUNT], minI[CONFIG_PM_SAMPLING_CHANNEL_COUNT];
     uint32_t sqV, sumV;
     uint32_t sqI, sumI[CONFIG_PM_SAMPLING_CHANNEL_COUNT];
-    uint32_t sample, channel, offset, lastPositiveCrossingIdx, positiveCrossings, sumCrossingPeriod;
+    uint32_t sample, channel, vOffset, iOffset, lastPositiveCrossingIdx, positiveCrossings, sumCrossingPeriod;
 
     for( ;; )
     {
@@ -249,6 +251,7 @@ _Noreturn void power_monitor_task( void *pvParameters )
 
 
             measurement.sampleTimestamp = notification.sampleTimestamp;
+            measurement.condition = PM_CONDITION_OK;
 
             sumV = 0;
             minV = 0;
@@ -265,13 +268,21 @@ _Noreturn void power_monitor_task( void *pvParameters )
             }
 
 
-            offset = esp_adc_cal_raw_to_voltage(notification.sampleZeroReferenceCounts, adc_chars);
+            for(sample = 0; sample < POWER_MONITOR_SAMPLES_PER_BLOCK; sample++)
+            {
+                sumV += notification.sampleBuffer->buffer[sample][0];
+            }
+
+            vOffset = esp_adc_cal_raw_to_voltage( sumV / POWER_MONITOR_SAMPLES_PER_BLOCK, adc_chars);
+            iOffset = esp_adc_cal_raw_to_voltage( notification.sampleZeroReferenceCounts, adc_chars);
+            sumV = 0;
+
             for(sample = 0; sample < POWER_MONITOR_SAMPLES_PER_BLOCK; sample++)
             {
                 /* Convert to mV */
                 v = (int32_t) esp_adc_cal_raw_to_voltage(notification.sampleBuffer->buffer[sample][0], adc_chars );
-                /* Remove DC offset */
-                v -= (int32_t) offset;
+                /* Remove DC vOffset */
+                v -= (int32_t) vOffset;
 
                 if(sample != 0)
                 {
@@ -293,10 +304,10 @@ _Noreturn void power_monitor_task( void *pvParameters )
 
                 for(channel = 0; channel < CONFIG_PM_SAMPLING_CHANNEL_COUNT; channel++)
                 {
-                    /* Remove zero offset and convert to mV */
+                    /* Remove zero vOffset and convert to mV */
                     i = (int32_t) esp_adc_cal_raw_to_voltage(notification.sampleBuffer->buffer[sample][1 + channel], adc_chars );
-                    /* Remove DC offset */
-                    i -= (int32_t) offset;
+                    /* Remove DC vOffset */
+                    i -= (int32_t) iOffset;
                     if(i < minI[channel]) minI[channel] = i;
                     if(i > maxI[channel]) maxI[channel] = i;
                     sqI = i * i;
@@ -305,16 +316,31 @@ _Noreturn void power_monitor_task( void *pvParameters )
 
             }
 
-            measurement.rmsV = sqrtf((float)sumV/POWER_MONITOR_SAMPLES_PER_BLOCK);
+            measurement.rmsV = sqrtf((float)sumV/POWER_MONITOR_SAMPLES_PER_BLOCK) * PM_V_SCALE_FACTOR;
             measurement.frequency = CONFIG_PM_SAMPLING_RATE_HZ/((float)sumCrossingPeriod/(float)positiveCrossings);
-            ESP_LOGI(TAG, "SUM: %d, crossings: %d", sumCrossingPeriod, positiveCrossings);
+#if CONFIG_PM_SAMPLING_LINE_FREQUENCY_50HZ
+            const uint8_t intendedFrequency = 50;
+#elif CONFIG_PM_SAMPLING_LINE_FREQUENCY_60HZ
+            const uint8_t intendedFrequency = 60;
+#else
+#error "No line frequency specified"
+#endif
+            if((measurement.frequency < (intendedFrequency * 0.9)) || (measurement.frequency > (intendedFrequency * 1.1)))
+            {
+
+                measurement.condition = PM_CONDITION_BAD_FREQUENCY;
+            }
+            if(measurement.rmsV < 50.0f)
+            {
+                measurement.condition = PM_CONDITION_NO_VOLTAGE;
+            }
 
             for(channel = 0; channel < CONFIG_PM_SAMPLING_CHANNEL_COUNT; channel++)
             {
                 measurement.rmsI[channel] = sqrtf((float)sumI[channel]/POWER_MONITOR_SAMPLES_PER_BLOCK);
             }
 
-            ESP_LOGI( TAG, "Measurement ->\n\r\tV:\t\t%.3f mV (%dmV <-> % dmV)\n\r\tFreq:\t%.2f Hz\n\r\tI[0]:\t%.3f mV (%d mV <-> %d mV)"
+            ESP_LOGI( TAG, "Measurement ->\n\r\tV:\t\t%.3f V (%.2fV <-> %.2fV)\n\r\tFreq:\t%.2f Hz\n\r\tI[0]:\t%.3f mV (%d mV <-> %d mV)"
 #if CONFIG_PM_SAMPLING_CHANNEL_COUNT > 1
                            "\n\r\tI[1]:\t%.3f mV (%d mV <-> %d mV)"
 #if CONFIG_PM_SAMPLING_CHANNEL_COUNT > 2
@@ -324,7 +350,7 @@ _Noreturn void power_monitor_task( void *pvParameters )
 #endif
 #endif
 #endif
-                      ,measurement.rmsV, minV, maxV, measurement.frequency,
+                      ,measurement.rmsV, minV*PM_V_SCALE_FACTOR, maxV*PM_V_SCALE_FACTOR, measurement.frequency,
                       measurement.rmsI[0], minI[0], maxI[0]
 #if CONFIG_PM_SAMPLING_CHANNEL_COUNT > 1
                       ,measurement.rmsI[1], minI[1], maxI[1]
