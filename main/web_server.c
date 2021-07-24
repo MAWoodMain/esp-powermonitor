@@ -263,6 +263,13 @@ esp_err_t web_server_getCalHandler(httpd_req_t *req)
         case 4:
             config_setFloatField(CONFIG_FLOAT_FIELD_I4_CAL, config_getFloatField(CONFIG_FLOAT_FIELD_I4_CAL)*cal);
             break;
+        case 99:
+            config_setFloatField(CONFIG_FLOAT_FIELD_V_CAL, 1.0f);
+            config_setFloatField(CONFIG_FLOAT_FIELD_I1_CAL, 1.0f);
+            config_setFloatField(CONFIG_FLOAT_FIELD_I2_CAL, 1.0f);
+            config_setFloatField(CONFIG_FLOAT_FIELD_I3_CAL, 1.0f);
+            config_setFloatField(CONFIG_FLOAT_FIELD_I4_CAL, 1.0f);
+            break;
         default:
             break;
     }

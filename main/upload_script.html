@@ -86,7 +86,7 @@
                                     </tr>
                                     </tbody>
                                 </table>
-                                <p class="title">Measurement</p>
+                                <p class="title">Measurement <button id="resetCalButton" class="button is-dark is-small is-rounded">Reset Cal</button></p>
                                 <table class="table is-fullwidth is-narrow">
                                     <tbody>
                                     <tr>
@@ -397,7 +397,7 @@
                                 if(!isNaN(cal))
                                 {
                                     var correctionFactor = cal / data.irms[1];
-                                    getJSON('/cal?channel=' + encodeURIComponent(1) + '&factor=' + encodeURIComponent(correctionFactor),
+                                    getJSON('/cal?channel=' + encodeURIComponent(2) + '&factor=' + encodeURIComponent(correctionFactor),
                                         function(err, data) {
                                             if (err !== null) {
                                                 alert('Something went wrong: ' + err);
@@ -424,7 +424,7 @@
                                 if(!isNaN(cal))
                                 {
                                     var correctionFactor = cal / data.irms[2];
-                                    getJSON('/cal?channel=' + encodeURIComponent(1) + '&factor=' + encodeURIComponent(correctionFactor),
+                                    getJSON('/cal?channel=' + encodeURIComponent(3) + '&factor=' + encodeURIComponent(correctionFactor),
                                         function(err, data) {
                                             if (err !== null) {
                                                 alert('Something went wrong: ' + err);
@@ -451,7 +451,7 @@
                                 if(!isNaN(cal))
                                 {
                                     var correctionFactor = cal / data.irms[3];
-                                    getJSON('/cal?channel=' + encodeURIComponent(1) + '&factor=' + encodeURIComponent(correctionFactor),
+                                    getJSON('/cal?channel=' + encodeURIComponent(4) + '&factor=' + encodeURIComponent(correctionFactor),
                                         function(err, data) {
                                             if (err !== null) {
                                                 alert('Something went wrong: ' + err);
@@ -460,6 +460,27 @@
                                             }
                                         });
                                 }
+                            }
+                        });
+                }
+            });
+            document.getElementById("resetCalButton").addEventListener("click", ()=>
+            {
+                if(confirm("Are you sure you want to clear all calibrations"))
+                {
+                    getJSON('/pm',
+                        function(err, data) {
+                            if (err !== null) {
+                                alert('Something went wrong: ' + err);
+                            } else {
+                                getJSON('/cal?channel=' + encodeURIComponent(99) + '&factor=' + encodeURIComponent(0),
+                                    function(err, data) {
+                                        if (err !== null) {
+                                            alert('Something went wrong: ' + err);
+                                        } else {
+                                            alert('Calibrated, restarting to apply calibration');
+                                        }
+                                    });
                             }
                         });
                 }
