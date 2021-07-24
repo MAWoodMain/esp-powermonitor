@@ -18,6 +18,7 @@ esp_err_t web_server_getMacHandler(httpd_req_t *req);
 esp_err_t web_server_getPmHandler(httpd_req_t *req);
 esp_err_t web_server_getWifiHandler(httpd_req_t *req);
 esp_err_t web_server_getMqttHandler(httpd_req_t *req);
+esp_err_t web_server_getCalHandler(httpd_req_t *req);
 void web_server_urldecode2(char *src);
 /******************************* CONSTANTS ******************************/
 extern const unsigned char upload_script_start[] asm("_binary_upload_script_html_start");
@@ -67,6 +68,13 @@ httpd_uri_t web_server_uriGetMqtt = {
         .handler  = web_server_getMqttHandler,
         .user_ctx = NULL
 };
+
+httpd_uri_t web_server_uriGetCal = {
+        .uri      = "/cal",
+        .method   = HTTP_GET,
+        .handler  = web_server_getCalHandler,
+        .user_ctx = NULL
+};
 /*************************** PUBLIC FUNCTIONS ***************************/
 
 bool web_server_init(void)
@@ -86,6 +94,7 @@ bool web_server_init(void)
         httpd_register_uri_handler(server, &web_server_uriGetPm);
         httpd_register_uri_handler(server, &web_server_uriGetWifi);
         httpd_register_uri_handler(server, &web_server_uriGetMqtt);
+        httpd_register_uri_handler(server, &web_server_uriGetCal);
     }
 
     /* TODO: check for errors */
@@ -133,10 +142,10 @@ esp_err_t web_server_getPmHandler(httpd_req_t *req)
 {
     power_monitor_measurement_t measurement = power_monitor_getLastMeasurement();
     memset(web_server_responseBuffer, 0, sizeof(web_server_responseBuffer));
-    sprintf((char*) web_server_responseBuffer, "{\"condition\":\"%s\",\"vrms\":%.02f,\"frequency\":%.02f}",
+    sprintf((char*) web_server_responseBuffer, "{\"condition\":\"%s\",\"vrms\":%.02f,\"frequency\":%.02f,\"irms\":[%.03f,%.03f,%.03f,%.03f]}",
             format_renderPowerMonitorCondition(measurement.condition),
             measurement.rmsV,
-            measurement.frequency);
+            measurement.frequency, measurement.rmsI[0], measurement.rmsI[1], measurement.rmsI[2],measurement.rmsI[3]);
     httpd_resp_send(req, (char*)web_server_responseBuffer, HTTPD_RESP_USE_STRLEN);
     return ESP_OK;
 }
@@ -199,6 +208,62 @@ esp_err_t web_server_getMqttHandler(httpd_req_t *req)
     config_setStringField(CONFIG_STRING_FIELD_MQTT_PASSWORD, (char*) web_server_responseBuffer);
 
     memset(web_server_responseBuffer, 0, sizeof(web_server_responseBuffer));
+
+    if(true == config_save())
+    {
+        sprintf((char*) web_server_responseBuffer, "{\"msg\":\"New details saved, restarting to apply\",\"success\":true}");
+        httpd_resp_send(req, (char*)web_server_responseBuffer, HTTPD_RESP_USE_STRLEN);
+        vTaskDelay( pdMS_TO_TICKS(100));
+        esp_restart();
+    }
+    else
+    {
+        sprintf((char*) web_server_responseBuffer, "{\"msg\":\"Failed to save new settings\",\"success\":false}}");
+        httpd_resp_send(req, (char*)web_server_responseBuffer, HTTPD_RESP_USE_STRLEN);
+    }
+
+    return ESP_OK;
+}
+
+esp_err_t web_server_getCalHandler(httpd_req_t *req)
+{
+    uint32_t channel = 0;
+    float cal = 0;
+    uint32_t buffLen = sizeof(web_server_responseBuffer);
+    memset(web_server_responseBuffer, 0, sizeof(web_server_responseBuffer));
+    httpd_req_get_url_query_str(req, (char*) &web_server_responseBuffer[buffLen/2], buffLen);
+
+    httpd_query_key_value((char*) &web_server_responseBuffer[buffLen/2], "channel", (char*) web_server_responseBuffer, (buffLen/2)-1 );
+    web_server_urldecode2((char*) web_server_responseBuffer);
+    ESP_LOGI(TAG, "raw: %s", (char*) web_server_responseBuffer);
+    channel = strtol((char*) web_server_responseBuffer, NULL, 10);
+
+    memset(web_server_responseBuffer, 0, (buffLen/2)-1);
+    httpd_query_key_value((char*) &web_server_responseBuffer[buffLen/2], "factor", (char*) web_server_responseBuffer, (buffLen/2)-1 );
+    web_server_urldecode2((char*) web_server_responseBuffer);
+    ESP_LOGI(TAG, "raw: %s", (char*) web_server_responseBuffer);
+    cal = strtof((char*) web_server_responseBuffer, NULL);
+
+    switch (channel)
+    {
+        case 0:
+            config_setFloatField(CONFIG_FLOAT_FIELD_V_CAL, cal);
+            break;
+        case 1:
+            config_setFloatField(CONFIG_FLOAT_FIELD_I1_CAL, cal);
+            break;
+        case 2:
+            config_setFloatField(CONFIG_FLOAT_FIELD_I2_CAL, cal);
+            break;
+        case 3:
+            config_setFloatField(CONFIG_FLOAT_FIELD_I3_CAL, cal);
+            break;
+        case 4:
+            config_setFloatField(CONFIG_FLOAT_FIELD_I4_CAL, cal);
+            break;
+        default:
+            break;
+    }
 
     if(true == config_save())
     {

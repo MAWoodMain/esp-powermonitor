@@ -10,6 +10,7 @@
 #include "driver/timer.h"
 #include "driver/adc.h"
 #include "esp_adc_cal.h"
+#include "config.h"
 
 /******************************* DEFINES ********************************/
 
@@ -18,8 +19,6 @@
 #define TIMER_DIVIDER         (16)  //  Hardware timer clock divider
 #define TIMER_SCALE           (TIMER_BASE_CLK / TIMER_DIVIDER)  // convert counter value to seconds
 #define DEFAULT_VREF    1100        //Use adc2_vref_to_gpio() to obtain a better estimate
-
-#define PM_V_SCALE_FACTOR 0.34874f
 
 /***************************** STRUCTURES *******************************/
 
@@ -337,7 +336,7 @@ _Noreturn void power_monitor_task( void *pvParameters )
 
             measurement.batteryVoltage = 2.0f * (float)(esp_adc_cal_raw_to_voltage(power_monitor_batteryReading, adc_chars)/1000.0);
 
-            measurement.rmsV = sqrtf((float)sumV/POWER_MONITOR_SAMPLES_PER_BLOCK) * PM_V_SCALE_FACTOR;
+            measurement.rmsV = sqrtf((float)sumV/POWER_MONITOR_SAMPLES_PER_BLOCK) * config_getFloatField(CONFIG_FLOAT_FIELD_V_CAL);
             measurement.frequency = CONFIG_PM_SAMPLING_RATE_HZ/((float)sumCrossingPeriod/(float)positiveCrossings);
 #if CONFIG_PM_SAMPLING_LINE_FREQUENCY_50HZ
             const uint8_t intendedFrequency = 50;

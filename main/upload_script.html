@@ -86,24 +86,43 @@
                                     </tr>
                                     </tbody>
                                 </table>
-                            </article>
-                        </div>
-                        <div class="tile is-parent">
-                            <article class="tile is-child notification is-info">
                                 <p class="title">Measurement</p>
                                 <table class="table is-fullwidth is-narrow">
                                     <tbody>
                                     <tr>
                                         <td>Condition</td>
                                         <th id="measurementConditionText"><i class="fas fa-question"></i></th>
+                                        <td></td>
                                     </tr>
                                     <tr>
                                         <td>Voltage</td>
                                         <td id="measurementVoltageText"><i class="fas fa-question"></i></td>
+                                        <td><button id="calVoltageButton" class="button is-dark is-small">Cal</button></td>
                                     </tr>
                                     <tr>
                                         <td>Frequency</td>
                                         <td id="measurementFrequencyText"><i class="fas fa-question"></i></td>
+                                        <td></td>
+                                    </tr>
+                                    <tr>
+                                        <td>Current (Channel 1)</td>
+                                        <td id="measurementCurrentOneText"><i class="fas fa-question"></i></td>
+                                        <td><button id="calI1Button" class="button is-dark is-small">Cal</button></td>
+                                    </tr>
+                                    <tr>
+                                        <td>Current (Channel 2)</td>
+                                        <td id="measurementCurrentTwoText"><i class="fas fa-question"></i></td>
+                                        <td><button id="calI2Button" class="button is-dark is-small">Cal</button></td>
+                                    </tr>
+                                    <tr>
+                                        <td>Current (Channel 3)</td>
+                                        <td id="measurementCurrentThreeText"><i class="fas fa-question"></i></td>
+                                        <td><button id="calI3Button" class="button is-dark is-small">Cal</button></td>
+                                    </tr>
+                                    <tr>
+                                        <td>Current (Channel 4)</td>
+                                        <td id="measurementCurrentFourText"><i class="fas fa-question"></i></td>
+                                        <td><button id="calI4Button" class="button is-dark is-small">Cal</button></td>
                                     </tr>
                                     </tbody>
                                 </table>
@@ -111,7 +130,8 @@
                         </div>
                     </div>
                 </div>
-            </div><!--
+            </div>
+            <!--
                     <div class="tile is-parent">
                         <article class="tile is-child notification is-danger">
                             <p class="title">Wide tile</p>
@@ -141,6 +161,7 @@
                 var xhr = new XMLHttpRequest();
                 xhr.open('GET', url, true);
                 xhr.responseType = 'json';
+                xhr.timeout = 1000;
                 xhr.onload = function() {
                     var status = xhr.status;
                     if (status === 200) {
@@ -178,11 +199,19 @@
                             {
                                 document.getElementById("measurementVoltageText").innerText = data.vrms + " Vrms";
                                 document.getElementById("measurementFrequencyText").innerText = data.frequency + " Hz";
+                                document.getElementById("measurementCurrentOneText").innerText = data.irms[0] + " A";
+                                document.getElementById("measurementCurrentTwoText").innerText = data.irms[1] + " A";
+                                document.getElementById("measurementCurrentThreeText").innerText = data.irms[2] + " A";
+                                document.getElementById("measurementCurrentFourText").innerText = data.irms[3] + " A";
                             }
                             else
                             {
                                 document.getElementById("measurementVoltageText").innerHTML = "<i class=\"fas fa-question\"></i>";
                                 document.getElementById("measurementFrequencyText").innerHTML = "<i class=\"fas fa-question\"></i>";
+                                document.getElementById("measurementCurrentOneText").innerHTML = "<i class=\"fas fa-question\"></i>";
+                                document.getElementById("measurementCurrentTwoText").innerHTML = "<i class=\"fas fa-question\"></i>";
+                                document.getElementById("measurementCurrentThreeText").innerHTML = "<i class=\"fas fa-question\"></i>";
+                                document.getElementById("measurementCurrentFourText").innerHTML = "<i class=\"fas fa-question\"></i>";
                             }
                         }
                     });
@@ -235,6 +264,141 @@
                             alert(data.msg)
                         }
                     });
+            });
+
+            document.getElementById("calVoltageButton").addEventListener("click", ()=>
+            {
+                if(confirm("OK, take a true measurement using a multimeter then press OK immediately"))
+                {
+                    getJSON('/pm',
+                        function(err, data) {
+                            if (err !== null) {
+                                alert('Something went wrong: ' + err);
+                            } else {
+                                var cal = parseFloat(prompt("Please enter the measured value in volts"));
+                                if(!isNaN(cal))
+                                {
+                                    var correctionFactor = cal / data.vrms;
+                                    getJSON('/cal?channel=' + encodeURIComponent(0) + '&factor=' + encodeURIComponent(correctionFactor),
+                                        function(err, data) {
+                                            if (err !== null) {
+                                                alert('Something went wrong: ' + err);
+                                            } else {
+                                                alert('Calibrated, restarting to apply calibration');
+                                            }
+                                        });
+                                }
+                            }
+                        });
+                }
+            });
+
+            document.getElementById("calI1Button").addEventListener("click", ()=>
+            {
+                if(confirm("OK, take a true measurement using a multimeter then press OK immediately"))
+                {
+                    getJSON('/pm',
+                        function(err, data) {
+                            if (err !== null) {
+                                alert('Something went wrong: ' + err);
+                            } else {
+                                var cal = parseFloat(prompt("Please enter the measured value in volts"));
+                                if(!isNaN(cal))
+                                {
+                                    var correctionFactor = cal / data.vrms;
+                                    getJSON('/cal?channel=' + encodeURIComponent(1) + '&factor=' + encodeURIComponent(correctionFactor),
+                                        function(err, data) {
+                                            if (err !== null) {
+                                                alert('Something went wrong: ' + err);
+                                            } else {
+                                                alert('Calibrated, restarting to apply calibration');
+                                            }
+                                        });
+                                }
+                            }
+                        });
+                }
+            });
+
+            document.getElementById("calI2Button").addEventListener("click", ()=>
+            {
+                if(confirm("OK, take a true measurement using a multimeter then press OK immediately"))
+                {
+                    getJSON('/pm',
+                        function(err, data) {
+                            if (err !== null) {
+                                alert('Something went wrong: ' + err);
+                            } else {
+                                var cal = parseFloat(prompt("Please enter the measured value in volts"));
+                                if(!isNaN(cal))
+                                {
+                                    var correctionFactor = cal / data.vrms;
+                                    getJSON('/cal?channel=' + encodeURIComponent(1) + '&factor=' + encodeURIComponent(correctionFactor),
+                                        function(err, data) {
+                                            if (err !== null) {
+                                                alert('Something went wrong: ' + err);
+                                            } else {
+                                                alert('Calibrated, restarting to apply calibration');
+                                            }
+                                        });
+                                }
+                            }
+                        });
+                }
+            });
+
+            document.getElementById("calI3Button").addEventListener("click", ()=>
+            {
+                if(confirm("OK, take a true measurement using a multimeter then press OK immediately"))
+                {
+                    getJSON('/pm',
+                        function(err, data) {
+                            if (err !== null) {
+                                alert('Something went wrong: ' + err);
+                            } else {
+                                var cal = parseFloat(prompt("Please enter the measured value in volts"));
+                                if(!isNaN(cal))
+                                {
+                                    var correctionFactor = cal / data.vrms;
+                                    getJSON('/cal?channel=' + encodeURIComponent(1) + '&factor=' + encodeURIComponent(correctionFactor),
+                                        function(err, data) {
+                                            if (err !== null) {
+                                                alert('Something went wrong: ' + err);
+                                            } else {
+                                                alert('Calibrated, restarting to apply calibration');
+                                            }
+                                        });
+                                }
+                            }
+                        });
+                }
+            });
+
+            document.getElementById("calI4Button").addEventListener("click", ()=>
+            {
+                if(confirm("OK, take a true measurement using a multimeter then press OK immediately"))
+                {
+                    getJSON('/pm',
+                        function(err, data) {
+                            if (err !== null) {
+                                alert('Something went wrong: ' + err);
+                            } else {
+                                var cal = parseFloat(prompt("Please enter the measured value in volts"));
+                                if(!isNaN(cal))
+                                {
+                                    var correctionFactor = cal / data.vrms;
+                                    getJSON('/cal?channel=' + encodeURIComponent(1) + '&factor=' + encodeURIComponent(correctionFactor),
+                                        function(err, data) {
+                                            if (err !== null) {
+                                                alert('Something went wrong: ' + err);
+                                            } else {
+                                                alert('Calibrated, restarting to apply calibration');
+                                            }
+                                        });
+                                }
+                            }
+                        });
+                }
             });
         </script>
     </footer>

@@ -13,6 +13,7 @@
 /************************** FUNCTION PROTOTYPES *************************/
 bool config_parseConfigFile();
 void config_extractStringField(config_string_field_e field, jsmntok_t *t, char *json);
+void config_extractFloatField(config_float_field_e field, jsmntok_t *t, char *json);
 /******************************* CONSTANTS ******************************/
 static const char *TAG = "CONFIG";
 static const char* config_configFilename = "config.json";
@@ -24,6 +25,17 @@ static const char* config_jsonStringFieldNames[CONFIG_STRING_FIELD_MAX] =
                 [CONFIG_STRING_FIELD_MQTT_USERNAME]     = "mqtt_username",
                 [CONFIG_STRING_FIELD_MQTT_PASSWORD]     = "mqtt_password"
         };
+static const char* config_jsonFloatFieldNames[CONFIG_FLOAT_FIELD_MAX] =
+        {
+                [CONFIG_FLOAT_FIELD_V_CAL]      = "cal_v_cal",
+                [CONFIG_FLOAT_FIELD_I1_CAL]     = "cal_i1_cal",
+                [CONFIG_FLOAT_FIELD_I2_CAL]     = "cal_i2_cal",
+                [CONFIG_FLOAT_FIELD_I3_CAL]     = "cal_i3_cal",
+                [CONFIG_FLOAT_FIELD_I4_CAL]     = "cal_i4_cal"
+        };
+/******************************* VARIABLES ******************************/
+char config_configSaveFileBuffer[CONFIG_SAVE_FILE_BUFFER_LENGTH];
+
 static char* config_stringFieldValues[CONFIG_STRING_FIELD_MAX] =
         {
                 [CONFIG_STRING_FIELD_WIFI_SSID]         = NULL,
@@ -32,8 +44,14 @@ static char* config_stringFieldValues[CONFIG_STRING_FIELD_MAX] =
                 [CONFIG_STRING_FIELD_MQTT_USERNAME]     = NULL,
                 [CONFIG_STRING_FIELD_MQTT_PASSWORD]     = NULL
         };
-/******************************* VARIABLES ******************************/
-char config_configSaveFileBuffer[CONFIG_SAVE_FILE_BUFFER_LENGTH];
+static float config_floatFieldValues[CONFIG_FLOAT_FIELD_MAX] =
+        {
+                [CONFIG_FLOAT_FIELD_V_CAL]      = 1,
+                [CONFIG_FLOAT_FIELD_I1_CAL]     = 1,
+                [CONFIG_FLOAT_FIELD_I2_CAL]     = 1,
+                [CONFIG_FLOAT_FIELD_I3_CAL]     = 1,
+                [CONFIG_FLOAT_FIELD_I4_CAL]     = 1
+        };
 /*************************** PUBLIC FUNCTIONS ***************************/
 bool config_init()
 {
@@ -110,6 +128,23 @@ void config_setStringField(config_string_field_e field, char* newValue)
     }
 }
 
+float config_getFloatField(config_float_field_e field)
+{
+    if(field < CONFIG_FLOAT_FIELD_MAX)
+    {
+        return config_floatFieldValues[field];
+    }
+    return 0.0f;
+}
+
+void config_setFloatField(config_float_field_e field, float newValue)
+{
+    if(field < CONFIG_FLOAT_FIELD_MAX)
+    {
+        config_floatFieldValues[field] = newValue;
+    }
+}
+
 bool config_save()
 {
     bool retVal = false;
@@ -126,6 +161,12 @@ bool config_save()
             sprintf(config_configSaveFileBuffer + strlen(config_configSaveFileBuffer), ",");
         }
         sprintf(config_configSaveFileBuffer + strlen(config_configSaveFileBuffer), "\"%s\":\"%s\"", config_jsonStringFieldNames[idx], config_stringFieldValues[idx]);
+    }
+
+    for(uint32_t idx = 0; idx < CONFIG_FLOAT_FIELD_MAX; idx++)
+    {
+        sprintf(config_configSaveFileBuffer + strlen(config_configSaveFileBuffer), ",");
+        sprintf(config_configSaveFileBuffer + strlen(config_configSaveFileBuffer), "\"%s\":%f", config_jsonFloatFieldNames[idx], config_floatFieldValues[idx]);
     }
     sprintf(config_configSaveFileBuffer + strlen(config_configSaveFileBuffer), "}");
     ESP_LOGI(TAG, "new config: %s", config_configSaveFileBuffer);
@@ -188,6 +229,11 @@ bool config_parseConfigFile()
                     ESP_LOGI(TAG, "Extracting string field %d", stringField);
                     config_extractStringField(stringField, t, fileBuffer);
                 }
+                for(config_float_field_e floatField = 0; floatField < CONFIG_FLOAT_FIELD_MAX; floatField++)
+                {
+                    ESP_LOGI(TAG, "Extracting float field %d", floatField);
+                    config_extractFloatField(floatField, t, fileBuffer);
+                }
             }
             else
             {
@@ -230,6 +276,44 @@ void config_extractStringField(config_string_field_e field, jsmntok_t *t, char *
                 config_stringFieldValues[field] = calloc(size + 1, sizeof(char));
                 memcpy(config_stringFieldValues[field], &json[t[idx].start], size);
                 ESP_LOGI(TAG, "Extracted string %s, value is %s", fieldName, config_stringFieldValues[field]);
+                break;
+            }
+
+            idx++;
+        }
+    }
+}
+
+void config_extractFloatField(config_float_field_e field, jsmntok_t *t, char *json)
+{
+    const char* fieldName = config_jsonFloatFieldNames[field];
+    uint32_t idx = 0;
+    uint32_t parentId = 0;
+    uint32_t size = 0;
+    uint8_t buffer[16];
+    while(t[idx].type != JSMN_UNDEFINED)
+    {
+        if(0 == memcmp(&json[t[idx].start], fieldName, MIN(strlen(fieldName),t[idx].end - t[idx].start)))
+        {
+            parentId = idx;
+            break;
+        }
+
+        idx++;
+    }
+
+    if(parentId != 0)
+    {
+        idx = 0;
+        while(t[idx].type != JSMN_UNDEFINED)
+        {
+            if(t[idx].parent == parentId)
+            {
+                size = t[idx].end - t[idx].start;
+                memset(buffer, 0, sizeof(buffer));
+                memcpy(buffer, &json[t[idx].start], size);
+                config_floatFieldValues[field] = strtof((char*)buffer, NULL);
+                ESP_LOGI(TAG, "Extracted float %s, value is %f", fieldName, config_floatFieldValues[field]);
                 break;
             }
 
