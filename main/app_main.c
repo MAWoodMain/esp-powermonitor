@@ -29,7 +29,7 @@ static const char *TAG = "MAIN";
 _Noreturn void app_main(void)
 {
     power_monitor_measurement_t measurement;
-    uint8_t payload[128];
+    uint8_t payload[512];
 
     esp_err_t ret = nvs_flash_init();
     if (ret == ESP_ERR_NVS_NO_FREE_PAGES || ret == ESP_ERR_NVS_NEW_VERSION_FOUND) {
@@ -69,10 +69,12 @@ _Noreturn void app_main(void)
                     {
                         memset(payload, 0, sizeof(payload));
                         sprintf( (char*) payload,
-                                 "{\"rmsV\":%.03f,\"frequency\":%.02f, \"rmsI\":[%.03f,%.03f,%.03f,%.03f],\"vssVoltage\":%.02f,\"batteryStatus\":\"%s\"}",
-                                 measurement.rmsV,
-                                 measurement.frequency, measurement.rmsI[0], measurement.rmsI[1], measurement.rmsI[2],
-                                 measurement.rmsI[3], battery_getVoltage(), format_renderBatteryState(battery_getState()));
+                                 "{\"rmsV\":%.03f,\"frequency\":%.02f, \"rmsI\":[%.03f,%.03f,%.03f,%.03f],\"rmsVA\":[%.03f,%.03f,%.03f,%.03f],\"rmsP\":[%.03f,%.03f,%.03f,%.03f],\"vssVoltage\":%.02f,\"batteryStatus\":\"%s\"}",
+                                 measurement.rmsV, measurement.frequency,
+                                 measurement.rmsI[0], measurement.rmsI[1], measurement.rmsI[2],measurement.rmsI[3],
+                                 measurement.rmsVA[0], measurement.rmsVA[1], measurement.rmsVA[2],measurement.rmsVA[3],
+                                 measurement.rmsP[0], measurement.rmsP[1], measurement.rmsP[2],measurement.rmsP[3],
+                                 battery_getVoltage(), format_renderBatteryState(battery_getState()));
                         mqtt_send("pm/dev/data",(char*)payload,1,false);
                     }
                     else if(measurement.condition == PM_CONDITION_BAD_FREQUENCY)

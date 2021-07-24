@@ -124,6 +124,46 @@
                                         <td id="measurementCurrentFourText"><i class="fas fa-question"></i></td>
                                         <td><button id="calI4Button" class="button is-dark is-small">Cal</button></td>
                                     </tr>
+                                    <tr>
+                                        <td>Real Power (Channel 1)</td>
+                                        <td id="measurementRPOneText"><i class="fas fa-question"></i></td>
+                                        <td></td>
+                                    </tr>
+                                    <tr>
+                                        <td>Real Power (Channel 2)</td>
+                                        <td id="measurementRPTwoText"><i class="fas fa-question"></i></td>
+                                        <td></td>
+                                    </tr>
+                                    <tr>
+                                        <td>Real Power (Channel 3)</td>
+                                        <td id="measurementRPThreeText"><i class="fas fa-question"></i></td>
+                                        <td></td>
+                                    </tr>
+                                    <tr>
+                                        <td>Real Power (Channel 4)</td>
+                                        <td id="measurementRPFourText"><i class="fas fa-question"></i></td>
+                                        <td></td>
+                                    </tr>
+                                    <tr>
+                                        <td>Apparent Power (Channel 1)</td>
+                                        <td id="measurementAPOneText"><i class="fas fa-question"></i></td>
+                                        <td></td>
+                                    </tr>
+                                    <tr>
+                                        <td>Apparent Power (Channel 2)</td>
+                                        <td id="measurementAPTwoText"><i class="fas fa-question"></i></td>
+                                        <td></td>
+                                    </tr>
+                                    <tr>
+                                        <td>Apparent Power (Channel 3)</td>
+                                        <td id="measurementAPThreeText"><i class="fas fa-question"></i></td>
+                                        <td></td>
+                                    </tr>
+                                    <tr>
+                                        <td>Apparent Power (Channel 4)</td>
+                                        <td id="measurementAPFourText"><i class="fas fa-question"></i></td>
+                                        <td></td>
+                                    </tr>
                                     </tbody>
                                 </table>
                             </article>
@@ -199,19 +239,41 @@
                             {
                                 document.getElementById("measurementVoltageText").innerText = data.vrms + " Vrms";
                                 document.getElementById("measurementFrequencyText").innerText = data.frequency + " Hz";
+
                                 document.getElementById("measurementCurrentOneText").innerText = data.irms[0] + " A";
                                 document.getElementById("measurementCurrentTwoText").innerText = data.irms[1] + " A";
                                 document.getElementById("measurementCurrentThreeText").innerText = data.irms[2] + " A";
                                 document.getElementById("measurementCurrentFourText").innerText = data.irms[3] + " A";
+
+                                document.getElementById("measurementRPOneText").innerText = data.prms[0] + " W";
+                                document.getElementById("measurementRPTwoText").innerText = data.prms[1] + " W";
+                                document.getElementById("measurementRPThreeText").innerText = data.prms[2] + " W";
+                                document.getElementById("measurementRPFourText").innerText = data.prms[3] + " W";
+
+                                document.getElementById("measurementAPOneText").innerText = data.varms[0] + " VA";
+                                document.getElementById("measurementAPTwoText").innerText = data.varms[1] + " VA";
+                                document.getElementById("measurementAPThreeText").innerText = data.varms[2] + " VA";
+                                document.getElementById("measurementAPFourText").innerText = data.varms[3] + " VA";
                             }
                             else
                             {
                                 document.getElementById("measurementVoltageText").innerHTML = "<i class=\"fas fa-question\"></i>";
                                 document.getElementById("measurementFrequencyText").innerHTML = "<i class=\"fas fa-question\"></i>";
+
                                 document.getElementById("measurementCurrentOneText").innerHTML = "<i class=\"fas fa-question\"></i>";
                                 document.getElementById("measurementCurrentTwoText").innerHTML = "<i class=\"fas fa-question\"></i>";
                                 document.getElementById("measurementCurrentThreeText").innerHTML = "<i class=\"fas fa-question\"></i>";
                                 document.getElementById("measurementCurrentFourText").innerHTML = "<i class=\"fas fa-question\"></i>";
+
+                                document.getElementById("measurementRPOneText").innerHTML = "<i class=\"fas fa-question\"></i>";
+                                document.getElementById("measurementRPTwoText").innerHTML = "<i class=\"fas fa-question\"></i>";
+                                document.getElementById("measurementRPThreeText").innerHTML = "<i class=\"fas fa-question\"></i>";
+                                document.getElementById("measurementRPFourText").innerHTML = "<i class=\"fas fa-question\"></i>";
+
+                                document.getElementById("measurementAPOneText").innerHTML = "<i class=\"fas fa-question\"></i>";
+                                document.getElementById("measurementAPTwoText").innerHTML = "<i class=\"fas fa-question\"></i>";
+                                document.getElementById("measurementAPThreeText").innerHTML = "<i class=\"fas fa-question\"></i>";
+                                document.getElementById("measurementAPFourText").innerHTML = "<i class=\"fas fa-question\"></i>";
                             }
                         }
                     });

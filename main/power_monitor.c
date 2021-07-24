@@ -90,7 +90,6 @@ static power_monitor_measurement_t power_monitor_lastMeasurement = {
         .rmsV = 0.0f,
         .batteryVoltage = 0.0f,
         .rmsI = {0.0f,0.0f,0.0f,0.0f},
-        .peakP = {0.0f,0.0f,0.0f,0.0f},
         .rmsP = {0.0f,0.0f,0.0f,0.0f},
         .rmsVA = {0.0f,0.0f,0.0f,0.0f}
 };
@@ -249,7 +248,7 @@ static bool IRAM_ATTR power_monitor_isr_callback(void* args)
 _Noreturn void power_monitor_task( void *pvParameters )
 {
     power_monitor_sampleNotification_t notification;
-    int32_t v, lastV, i, maxV, minV, maxI[CONFIG_PM_SAMPLING_CHANNEL_COUNT], minI[CONFIG_PM_SAMPLING_CHANNEL_COUNT];
+    int32_t v, lastV, i, maxV, minV, maxI[CONFIG_PM_SAMPLING_CHANNEL_COUNT], minI[CONFIG_PM_SAMPLING_CHANNEL_COUNT], sumP[CONFIG_PM_SAMPLING_CHANNEL_COUNT];
     uint32_t sqV, sumV;
     uint32_t sqI, sumI[CONFIG_PM_SAMPLING_CHANNEL_COUNT];
     uint32_t sample, channel, vOffset, iOffset, lastPositiveCrossingIdx, positiveCrossings, sumCrossingPeriod;
@@ -330,6 +329,7 @@ _Noreturn void power_monitor_task( void *pvParameters )
                     if(i > maxI[channel]) maxI[channel] = i;
                     sqI = i * i;
                     sumI[channel] += sqI;
+                    sumP[channel] = v*i;
                 }
 
             }
@@ -358,6 +358,8 @@ _Noreturn void power_monitor_task( void *pvParameters )
             for(channel = 0; channel < CONFIG_PM_SAMPLING_CHANNEL_COUNT; channel++)
             {
                 measurement.rmsI[channel] = sqrtf((float)sumI[channel]/POWER_MONITOR_SAMPLES_PER_BLOCK);
+                measurement.rmsVA[channel] = measurement.rmsI[channel] * measurement.rmsV;
+                measurement.rmsP[channel] = config_getFloatField(CONFIG_FLOAT_FIELD_V_CAL) * config_getFloatField(CONFIG_FLOAT_FIELD_I1_CAL+channel) * sumP[channel];
             }
 #if CONFIG_PM_PRINT_ENABLE
             ESP_LOGI( TAG, "Measurement ->\n\r\tV:\t\t%.3f V (%.2fV <-> %.2fV)\n\r\tFreq:\t%.2f Hz\n\r\tI[0]:\t%.3f mV (%d mV <-> %d mV)"

@@ -38,19 +38,19 @@ char config_configSaveFileBuffer[CONFIG_SAVE_FILE_BUFFER_LENGTH];
 
 static char* config_stringFieldValues[CONFIG_STRING_FIELD_MAX] =
         {
-                [CONFIG_STRING_FIELD_WIFI_SSID]         = NULL,
-                [CONFIG_STRING_FIELD_WIFI_PASSWORD]     = NULL,
-                [CONFIG_STRING_FIELD_MQTT_URI]          = NULL,
-                [CONFIG_STRING_FIELD_MQTT_USERNAME]     = NULL,
-                [CONFIG_STRING_FIELD_MQTT_PASSWORD]     = NULL
+                [CONFIG_STRING_FIELD_WIFI_SSID]         = "default_ssid",
+                [CONFIG_STRING_FIELD_WIFI_PASSWORD]     = "default_password",
+                [CONFIG_STRING_FIELD_MQTT_URI]          = "default_uri",
+                [CONFIG_STRING_FIELD_MQTT_USERNAME]     = "default_username",
+                [CONFIG_STRING_FIELD_MQTT_PASSWORD]     = "default_password"
         };
 static float config_floatFieldValues[CONFIG_FLOAT_FIELD_MAX] =
         {
-                [CONFIG_FLOAT_FIELD_V_CAL]      = 1,
-                [CONFIG_FLOAT_FIELD_I1_CAL]     = 1,
-                [CONFIG_FLOAT_FIELD_I2_CAL]     = 1,
-                [CONFIG_FLOAT_FIELD_I3_CAL]     = 1,
-                [CONFIG_FLOAT_FIELD_I4_CAL]     = 1
+                [CONFIG_FLOAT_FIELD_V_CAL]      = 1.0f,
+                [CONFIG_FLOAT_FIELD_I1_CAL]     = 1.0f,
+                [CONFIG_FLOAT_FIELD_I2_CAL]     = 1.0f,
+                [CONFIG_FLOAT_FIELD_I3_CAL]     = 1.0f,
+                [CONFIG_FLOAT_FIELD_I4_CAL]     = 1.0f
         };
 /*************************** PUBLIC FUNCTIONS ***************************/
 bool config_init()
@@ -92,7 +92,10 @@ bool config_init()
 
         if(false == config_parseConfigFile())
         {
-            retVal = false;
+            if(false == config_save())
+            {
+                retVal = false;
+            }
         }
     }
 

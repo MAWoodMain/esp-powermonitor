@@ -142,10 +142,12 @@ esp_err_t web_server_getPmHandler(httpd_req_t *req)
 {
     power_monitor_measurement_t measurement = power_monitor_getLastMeasurement();
     memset(web_server_responseBuffer, 0, sizeof(web_server_responseBuffer));
-    sprintf((char*) web_server_responseBuffer, "{\"condition\":\"%s\",\"vrms\":%.02f,\"frequency\":%.02f,\"irms\":[%.03f,%.03f,%.03f,%.03f]}",
+    sprintf((char*) web_server_responseBuffer, "{\"condition\":\"%s\",\"vrms\":%.02f,\"frequency\":%.02f,\"irms\":[%.03f,%.03f,%.03f,%.03f],\"varms\":[%.03f,%.03f,%.03f,%.03f],\"prms\":[%.03f,%.03f,%.03f,%.03f]}",
             format_renderPowerMonitorCondition(measurement.condition),
             measurement.rmsV,
-            measurement.frequency, measurement.rmsI[0], measurement.rmsI[1], measurement.rmsI[2],measurement.rmsI[3]);
+            measurement.frequency, measurement.rmsI[0], measurement.rmsI[1], measurement.rmsI[2],measurement.rmsI[3],
+            measurement.rmsVA[0], measurement.rmsVA[1], measurement.rmsVA[2],measurement.rmsVA[3],
+            measurement.rmsP[0], measurement.rmsP[1], measurement.rmsP[2],measurement.rmsP[3]);
     httpd_resp_send(req, (char*)web_server_responseBuffer, HTTPD_RESP_USE_STRLEN);
     return ESP_OK;
 }

@@ -37,8 +37,6 @@ typedef struct
     float rmsP[CONFIG_PM_SAMPLING_CHANNEL_COUNT];
     /* Apparent power RMS */
     float rmsVA[CONFIG_PM_SAMPLING_CHANNEL_COUNT];
-    /* Peak instantaneous power */
-    float peakP[CONFIG_PM_SAMPLING_CHANNEL_COUNT];
     /* This is the time since boot in ms for time referencing */
     uint32_t sampleTimestamp;
     /* Backup battery voltage */
