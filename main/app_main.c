@@ -15,6 +15,8 @@
 #include "wifi.h"
 #include "mqtt.h"
 #include "config.h"
+#include "battery.h"
+#include "format.h"
 
 /******************************* DEFINES ********************************/
 /***************************** STRUCTURES *******************************/
@@ -38,8 +40,10 @@ _Noreturn void app_main(void)
     led_init();
     config_init();
     power_monitor_init();
+    battery_init();
     wifi_init();
     wifi_connect();
+
     if(wifi_waitForConnection(portMAX_DELAY))
     {
         web_server_init();
@@ -59,11 +63,16 @@ _Noreturn void app_main(void)
 #if CONFIG_PM_SAMPLING_ENABLE_TIMING_DIAGNOSTIC
                     gpio_set_level(PINMAP_TRANSMIT_TIMING, 1);
 #endif /* CONFIG_PM_SAMPLING_ENABLE_TIMING_DIAGNOSTIC */
+
+                    battery_handleVoltageMeasurement(measurement.batteryVoltage);
                     if(measurement.condition == PM_CONDITION_OK)
                     {
                         memset(payload, 0, sizeof(payload));
-                        sprintf( (char*) payload, "{\"rmsV\":%.3f,\"frequency\":%.2f, \"rmsI\":[%.3f,%.3f,%.3f,%.3f]}", measurement.rmsV,
-                                 measurement.frequency, measurement.rmsI[0], measurement.rmsI[1], measurement.rmsI[2], measurement.rmsI[3] );
+                        sprintf( (char*) payload,
+                                 "{\"rmsV\":%.03f,\"frequency\":%.02f, \"rmsI\":[%.03f,%.03f,%.03f,%.03f],\"vssVoltage\":%.02f,\"batteryStatus\":\"%s\"}",
+                                 measurement.rmsV,
+                                 measurement.frequency, measurement.rmsI[0], measurement.rmsI[1], measurement.rmsI[2],
+                                 measurement.rmsI[3], battery_getVoltage(), format_renderBatteryState(battery_getState()));
                         mqtt_send("pm/dev/data",(char*)payload,1,false);
                     }
                     else if(measurement.condition == PM_CONDITION_BAD_FREQUENCY)

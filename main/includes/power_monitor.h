@@ -15,6 +15,7 @@
 
 typedef enum
 {
+    PM_CONDITION_INVALID,
     PM_CONDITION_OK,
     PM_CONDITION_NO_VOLTAGE,
     PM_CONDITION_BAD_FREQUENCY
@@ -40,12 +41,14 @@ typedef struct
     float peakP[CONFIG_PM_SAMPLING_CHANNEL_COUNT];
     /* This is the time since boot in ms for time referencing */
     uint32_t sampleTimestamp;
+    /* Backup battery voltage */
+    float batteryVoltage;
 } power_monitor_measurement_t;
 /************************** FUNCTION PROTOTYPES *************************/
 
 bool power_monitor_init(void);
-
 MessageBufferHandle_t power_monitor_getOutputMessageHandle(void);
+power_monitor_measurement_t power_monitor_getLastMeasurement(void);
 
 /******************************* GLOBALS ********************************/
 

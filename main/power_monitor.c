@@ -77,12 +77,24 @@ static volatile uint32_t power_monitor_readingIndex = 0;
 
 static volatile uint16_t power_monitor_midPointCounts; /* This will be replaced with a measured value after each sample block */
 
+static volatile uint16_t power_monitor_batteryReading = 0;
 const size_t power_monitor_rawMessageBufferSizeBytes = 128;
 const size_t power_monitor_measurementMessageBufferSizeBytes = 512;
 
 static MessageBufferHandle_t power_monitor_rawMessageBufferHandle;
 static MessageBufferHandle_t power_monitor_measurementMessageBufferHandle;
 static TaskHandle_t power_monitor_taskHandle;
+
+static power_monitor_measurement_t power_monitor_lastMeasurement = {
+        .condition = PM_CONDITION_INVALID,
+        .frequency = 0.0f,
+        .rmsV = 0.0f,
+        .batteryVoltage = 0.0f,
+        .rmsI = {0.0f,0.0f,0.0f,0.0f},
+        .peakP = {0.0f,0.0f,0.0f,0.0f},
+        .rmsP = {0.0f,0.0f,0.0f,0.0f},
+        .rmsVA = {0.0f,0.0f,0.0f,0.0f}
+};
 
 /*************************** PUBLIC FUNCTIONS ***************************/
 
@@ -158,6 +170,11 @@ MessageBufferHandle_t power_monitor_getOutputMessageHandle(void)
     return power_monitor_measurementMessageBufferHandle;
 }
 
+power_monitor_measurement_t power_monitor_getLastMeasurement(void)
+{
+    return power_monitor_lastMeasurement;
+}
+
 /*************************** PRIVATE FUNCTIONS **************************/
 
 static bool IRAM_ATTR power_monitor_isr_callback(void* args)
@@ -191,6 +208,8 @@ static bool IRAM_ATTR power_monitor_isr_callback(void* args)
         power_monitor_sampleBuffers[power_monitor_bufferIndex].buffer[power_monitor_readingIndex][1 +
                                                                                                   channelIdx] /= CONFIG_PM_SAMPLING_NO_SUBSAMPLES;
     }
+
+    power_monitor_batteryReading = adc1_get_raw( PINMAP_BAT_SEN_ADC );
 
     power_monitor_readingIndex++;
     power_monitor_readingIndex %= POWER_MONITOR_SAMPLES_PER_BLOCK;
@@ -316,6 +335,8 @@ _Noreturn void power_monitor_task( void *pvParameters )
 
             }
 
+            measurement.batteryVoltage = 2.0f * (float)(esp_adc_cal_raw_to_voltage(power_monitor_batteryReading, adc_chars)/1000.0);
+
             measurement.rmsV = sqrtf((float)sumV/POWER_MONITOR_SAMPLES_PER_BLOCK) * PM_V_SCALE_FACTOR;
             measurement.frequency = CONFIG_PM_SAMPLING_RATE_HZ/((float)sumCrossingPeriod/(float)positiveCrossings);
 #if CONFIG_PM_SAMPLING_LINE_FREQUENCY_50HZ
@@ -363,6 +384,7 @@ _Noreturn void power_monitor_task( void *pvParameters )
 #endif
                       );
 #endif
+            power_monitor_lastMeasurement = measurement;
             xMessageBufferSend( power_monitor_measurementMessageBufferHandle,
                                        (void*) &measurement,
                                        sizeof(measurement),

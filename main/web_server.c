@@ -6,19 +6,54 @@
 /**************************** USER INCLUDES *****************************/
 #include "web_server.h"
 #include "esp_http_server.h"
+#include "format.h"
 /******************************* DEFINES ********************************/
 /***************************** STRUCTURES *******************************/
 /************************** FUNCTION PROTOTYPES *************************/
 esp_err_t web_server_get_handler(httpd_req_t *req);
+esp_err_t web_server_getBatteryHandler(httpd_req_t *req);
+esp_err_t web_server_getMacHandler(httpd_req_t *req);
+esp_err_t web_server_getPmHandler(httpd_req_t *req);
+esp_err_t web_server_getWifiHandler(httpd_req_t *req);
 /******************************* CONSTANTS ******************************/
 extern const unsigned char upload_script_start[] asm("_binary_upload_script_html_start");
 extern const unsigned char upload_script_end[]   asm("_binary_upload_script_html_end");
+static const char *TAG = "WEB_SERVER";
 /******************************* VARIABLES ******************************/
+uint8_t web_server_responseBuffer[128];
 
 httpd_uri_t web_server_uri_get = {
         .uri      = "/",
         .method   = HTTP_GET,
         .handler  = web_server_get_handler,
+        .user_ctx = NULL
+};
+
+httpd_uri_t web_server_uriGetBattery = {
+        .uri      = "/battery",
+        .method   = HTTP_GET,
+        .handler  = web_server_getBatteryHandler,
+        .user_ctx = NULL
+};
+
+httpd_uri_t web_server_uriGetMac = {
+        .uri      = "/mac",
+        .method   = HTTP_GET,
+        .handler  = web_server_getMacHandler,
+        .user_ctx = NULL
+};
+
+httpd_uri_t web_server_uriGetPm = {
+        .uri      = "/pm",
+        .method   = HTTP_GET,
+        .handler  = web_server_getPmHandler,
+        .user_ctx = NULL
+};
+
+httpd_uri_t web_server_uriGetWifi = {
+        .uri      = "/wifi",
+        .method   = HTTP_GET,
+        .handler  = web_server_getWifiHandler,
         .user_ctx = NULL
 };
 /*************************** PUBLIC FUNCTIONS ***************************/
@@ -35,6 +70,10 @@ bool web_server_init(void)
     if (httpd_start(&server, &config) == ESP_OK) {
         /* Register URI handlers */
         httpd_register_uri_handler(server, &web_server_uri_get);
+        httpd_register_uri_handler(server, &web_server_uriGetBattery);
+        httpd_register_uri_handler(server, &web_server_uriGetMac);
+        httpd_register_uri_handler(server, &web_server_uriGetPm);
+        httpd_register_uri_handler(server, &web_server_uriGetWifi);
     }
 
     /* TODO: check for errors */
@@ -48,5 +87,61 @@ esp_err_t web_server_get_handler(httpd_req_t *req)
     /* Send a simple response */
     //const char resp[] = "URI GET Response";
     httpd_resp_send(req, (char *)upload_script_start, (ssize_t)(upload_script_end-upload_script_start));
+    return ESP_OK;
+}
+
+esp_err_t web_server_getBatteryHandler(httpd_req_t *req)
+{
+    memset(web_server_responseBuffer, 0, sizeof(web_server_responseBuffer));
+    sprintf((char*) web_server_responseBuffer, "{\"status\":\"%s\",\"voltage\":%.02f}",
+            format_renderBatteryState(battery_getState()),
+            battery_getVoltage()),
+    httpd_resp_send(req, (char*)web_server_responseBuffer, HTTPD_RESP_USE_STRLEN);
+    return ESP_OK;
+}
+
+esp_err_t web_server_getMacHandler(httpd_req_t *req)
+{
+    uint8_t mac[6];
+    if(ESP_OK == esp_read_mac(mac, ESP_MAC_WIFI_STA))
+    {
+        memset(web_server_responseBuffer, 0, sizeof(web_server_responseBuffer));
+        sprintf((char*) web_server_responseBuffer, "{\"MACAddress\":\"%02X:%02X:%02X:%02X:%02X:%02X\"}", mac[0], mac[1], mac[2], mac[3], mac[4], mac[5]);
+        httpd_resp_send(req, (char*)web_server_responseBuffer, HTTPD_RESP_USE_STRLEN);
+    }
+    else
+    {
+        httpd_resp_send_500(req);
+    }
+    return ESP_OK;
+}
+
+esp_err_t web_server_getPmHandler(httpd_req_t *req)
+{
+    power_monitor_measurement_t measurement = power_monitor_getLastMeasurement();
+    memset(web_server_responseBuffer, 0, sizeof(web_server_responseBuffer));
+    sprintf((char*) web_server_responseBuffer, "{\"condition\":\"%s\",\"vrms\":%.02f,\"frequency\":%.02f}",
+            format_renderPowerMonitorCondition(measurement.condition),
+            measurement.rmsV,
+            measurement.frequency);
+    httpd_resp_send(req, (char*)web_server_responseBuffer, HTTPD_RESP_USE_STRLEN);
+    return ESP_OK;
+}
+
+
+esp_err_t web_server_getWifiHandler(httpd_req_t *req)
+{
+    uint32_t buffLen = sizeof(web_server_responseBuffer);
+    memset(web_server_responseBuffer, 0, sizeof(web_server_responseBuffer));
+    httpd_req_get_url_query_str(req, (char*) &web_server_responseBuffer[buffLen/2], buffLen);
+
+    httpd_query_key_value((char*) &web_server_responseBuffer[buffLen/2], "ssid", (char*) web_server_responseBuffer, (buffLen/2)-1 );
+    ESP_LOGI(TAG, "SSID: '%s'", (char*) web_server_responseBuffer);
+    memset(web_server_responseBuffer, 0, (buffLen/2)-1);
+    httpd_query_key_value((char*) &web_server_responseBuffer[buffLen/2], "password", (char*) web_server_responseBuffer, (buffLen/2)-1 );
+    ESP_LOGI(TAG, "PASSWORD: '%s'", (char*) web_server_responseBuffer);
+    memset(web_server_responseBuffer, 0, sizeof(web_server_responseBuffer));
+    sprintf((char*) web_server_responseBuffer, "{\"msg\":\"OK\"}");
+    httpd_resp_send(req, (char*)web_server_responseBuffer, HTTPD_RESP_USE_STRLEN);
     return ESP_OK;
 }
