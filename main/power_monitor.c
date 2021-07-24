@@ -357,8 +357,8 @@ _Noreturn void power_monitor_task( void *pvParameters )
 
             for(channel = 0; channel < CONFIG_PM_SAMPLING_CHANNEL_COUNT; channel++)
             {
-                measurement.rmsI[channel] = sqrtf((float)sumI[channel]/POWER_MONITOR_SAMPLES_PER_BLOCK);
-                measurement.rmsVA[channel] = measurement.rmsI[channel] * measurement.rmsV;
+                measurement.rmsI[channel] = config_getFloatField(CONFIG_FLOAT_FIELD_I1_CAL+channel) * sqrtf((float)sumI[channel]/POWER_MONITOR_SAMPLES_PER_BLOCK);
+                measurement.rmsVA[channel] = config_getFloatField(CONFIG_FLOAT_FIELD_V_CAL) * config_getFloatField(CONFIG_FLOAT_FIELD_I1_CAL+channel) * measurement.rmsI[channel] * measurement.rmsV;
                 measurement.rmsP[channel] = config_getFloatField(CONFIG_FLOAT_FIELD_V_CAL) * config_getFloatField(CONFIG_FLOAT_FIELD_I1_CAL+channel) * sumP[channel];
             }
 #if CONFIG_PM_PRINT_ENABLE
