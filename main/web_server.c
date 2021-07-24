@@ -4,9 +4,11 @@
 
 /**************************** LIB INCLUDES ******************************/
 /**************************** USER INCLUDES *****************************/
+#include <ctype.h>
 #include "web_server.h"
 #include "esp_http_server.h"
 #include "format.h"
+#include "config.h"
 /******************************* DEFINES ********************************/
 /***************************** STRUCTURES *******************************/
 /************************** FUNCTION PROTOTYPES *************************/
@@ -15,12 +17,14 @@ esp_err_t web_server_getBatteryHandler(httpd_req_t *req);
 esp_err_t web_server_getMacHandler(httpd_req_t *req);
 esp_err_t web_server_getPmHandler(httpd_req_t *req);
 esp_err_t web_server_getWifiHandler(httpd_req_t *req);
+esp_err_t web_server_getMqttHandler(httpd_req_t *req);
+void web_server_urldecode2(char *src);
 /******************************* CONSTANTS ******************************/
 extern const unsigned char upload_script_start[] asm("_binary_upload_script_html_start");
 extern const unsigned char upload_script_end[]   asm("_binary_upload_script_html_end");
 static const char *TAG = "WEB_SERVER";
 /******************************* VARIABLES ******************************/
-uint8_t web_server_responseBuffer[128];
+uint8_t web_server_responseBuffer[256];
 
 httpd_uri_t web_server_uri_get = {
         .uri      = "/",
@@ -56,6 +60,13 @@ httpd_uri_t web_server_uriGetWifi = {
         .handler  = web_server_getWifiHandler,
         .user_ctx = NULL
 };
+
+httpd_uri_t web_server_uriGetMqtt = {
+        .uri      = "/mqtt",
+        .method   = HTTP_GET,
+        .handler  = web_server_getMqttHandler,
+        .user_ctx = NULL
+};
 /*************************** PUBLIC FUNCTIONS ***************************/
 
 bool web_server_init(void)
@@ -74,6 +85,7 @@ bool web_server_init(void)
         httpd_register_uri_handler(server, &web_server_uriGetMac);
         httpd_register_uri_handler(server, &web_server_uriGetPm);
         httpd_register_uri_handler(server, &web_server_uriGetWifi);
+        httpd_register_uri_handler(server, &web_server_uriGetMqtt);
     }
 
     /* TODO: check for errors */
@@ -93,9 +105,10 @@ esp_err_t web_server_get_handler(httpd_req_t *req)
 esp_err_t web_server_getBatteryHandler(httpd_req_t *req)
 {
     memset(web_server_responseBuffer, 0, sizeof(web_server_responseBuffer));
-    sprintf((char*) web_server_responseBuffer, "{\"status\":\"%s\",\"voltage\":%.02f}",
+    sprintf((char*) web_server_responseBuffer, "{\"status\":\"%s\",\"voltage\":%.02f,\"uptime\":%lu}",
             format_renderBatteryState(battery_getState()),
-            battery_getVoltage()),
+            battery_getVoltage(),
+            pdTICKS_TO_MS(xTaskGetTickCount())/1000l),
     httpd_resp_send(req, (char*)web_server_responseBuffer, HTTPD_RESP_USE_STRLEN);
     return ESP_OK;
 }
@@ -136,12 +149,87 @@ esp_err_t web_server_getWifiHandler(httpd_req_t *req)
     httpd_req_get_url_query_str(req, (char*) &web_server_responseBuffer[buffLen/2], buffLen);
 
     httpd_query_key_value((char*) &web_server_responseBuffer[buffLen/2], "ssid", (char*) web_server_responseBuffer, (buffLen/2)-1 );
-    ESP_LOGI(TAG, "SSID: '%s'", (char*) web_server_responseBuffer);
+    web_server_urldecode2((char*) web_server_responseBuffer);
+    config_setStringField(CONFIG_STRING_FIELD_WIFI_SSID, (char*) web_server_responseBuffer);
+
     memset(web_server_responseBuffer, 0, (buffLen/2)-1);
     httpd_query_key_value((char*) &web_server_responseBuffer[buffLen/2], "password", (char*) web_server_responseBuffer, (buffLen/2)-1 );
-    ESP_LOGI(TAG, "PASSWORD: '%s'", (char*) web_server_responseBuffer);
+    web_server_urldecode2((char*) web_server_responseBuffer);
+    config_setStringField(CONFIG_STRING_FIELD_WIFI_PASSWORD, (char*) web_server_responseBuffer);
+
     memset(web_server_responseBuffer, 0, sizeof(web_server_responseBuffer));
-    sprintf((char*) web_server_responseBuffer, "{\"msg\":\"OK\"}");
-    httpd_resp_send(req, (char*)web_server_responseBuffer, HTTPD_RESP_USE_STRLEN);
+
+    if(true == config_save())
+    {
+        sprintf((char*) web_server_responseBuffer, "{\"msg\":\"New details saved, restarting to apply\",\"success\":true}");
+        httpd_resp_send(req, (char*)web_server_responseBuffer, HTTPD_RESP_USE_STRLEN);
+        vTaskDelay( pdMS_TO_TICKS(100));
+        esp_restart();
+    }
+    else
+    {
+        sprintf((char*) web_server_responseBuffer, "{\"msg\":\"Failed to save new settings\",\"success\":false}}");
+        httpd_resp_send(req, (char*)web_server_responseBuffer, HTTPD_RESP_USE_STRLEN);
+    }
+
     return ESP_OK;
+}
+
+esp_err_t web_server_getMqttHandler(httpd_req_t *req)
+{
+    uint32_t buffLen = sizeof(web_server_responseBuffer);
+    memset(web_server_responseBuffer, 0, sizeof(web_server_responseBuffer));
+    httpd_req_get_url_query_str(req, (char*) &web_server_responseBuffer[buffLen/2], buffLen);
+
+    httpd_query_key_value((char*) &web_server_responseBuffer[buffLen/2], "uri", (char*) web_server_responseBuffer, (buffLen/2)-1 );
+    web_server_urldecode2((char*) web_server_responseBuffer);
+    ESP_LOGI(TAG, "URI: %s", (char*) web_server_responseBuffer);
+    config_setStringField(CONFIG_STRING_FIELD_MQTT_URI, (char*) web_server_responseBuffer);
+
+    memset(web_server_responseBuffer, 0, (buffLen/2)-1);
+    httpd_query_key_value((char*) &web_server_responseBuffer[buffLen/2], "username", (char*) web_server_responseBuffer, (buffLen/2)-1 );
+    web_server_urldecode2((char*) web_server_responseBuffer);
+    ESP_LOGI(TAG, "USER: %s", (char*) web_server_responseBuffer);
+    config_setStringField(CONFIG_STRING_FIELD_MQTT_USERNAME, (char*) web_server_responseBuffer);
+
+    memset(web_server_responseBuffer, 0, (buffLen/2)-1);
+    httpd_query_key_value((char*) &web_server_responseBuffer[buffLen/2], "password", (char*) web_server_responseBuffer, (buffLen/2)-1 );
+    web_server_urldecode2((char*) web_server_responseBuffer);
+    ESP_LOGI(TAG, "PASS: %s", (char*) web_server_responseBuffer);
+    config_setStringField(CONFIG_STRING_FIELD_MQTT_PASSWORD, (char*) web_server_responseBuffer);
+
+    memset(web_server_responseBuffer, 0, sizeof(web_server_responseBuffer));
+
+    if(true == config_save())
+    {
+        sprintf((char*) web_server_responseBuffer, "{\"msg\":\"New details saved, restarting to apply\",\"success\":true}");
+        httpd_resp_send(req, (char*)web_server_responseBuffer, HTTPD_RESP_USE_STRLEN);
+        vTaskDelay( pdMS_TO_TICKS(100));
+        esp_restart();
+    }
+    else
+    {
+        sprintf((char*) web_server_responseBuffer, "{\"msg\":\"Failed to save new settings\",\"success\":false}}");
+        httpd_resp_send(req, (char*)web_server_responseBuffer, HTTPD_RESP_USE_STRLEN);
+    }
+
+    return ESP_OK;
+}
+
+void web_server_urldecode2(char *src)
+{
+    char *sSource = src;
+    char *sDest = src;
+    int nLength;
+    for (nLength = 0; *sSource; nLength++) {
+        if (*sSource == '%' && sSource[1] && sSource[2] && isxdigit(sSource[1]) && isxdigit(sSource[2])) {
+            sSource[1] -= sSource[1] <= '9' ? '0' : (sSource[1] <= 'F' ? 'A' : 'a')-10;
+            sSource[2] -= sSource[2] <= '9' ? '0' : (sSource[2] <= 'F' ? 'A' : 'a')-10;
+            sDest[nLength] = 16 * sSource[1] + sSource[2];
+            sSource += 3;
+            continue;
+        }
+        sDest[nLength] = *sSource++;
+    }
+    sDest[nLength] = '\0';
 }

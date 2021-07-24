@@ -19,8 +19,8 @@
                                     </div>
                                 </div>
                                 <div class="field">
+                                    <label class="label">Password</label>
                                     <p class="control has-icons-left">
-
                                         <input id="passwordInput" class="input" type="password" placeholder="Password">
                                         <!--<input id=abc" class="input" type="password" placeholder="Password"> -->
                                         <span class="icon is-small is-left">
@@ -30,6 +30,32 @@
                                 </div>
                                 <div class="control">
                                     <button id="saveWifiButton" class="button is-dark">Save</button>
+                                </div>
+                                <br>
+                                <p class="title">MQTT</p>
+                                <div class="field">
+                                    <label class="label">URI</label>
+                                    <div class="control">
+                                        <input id="mqttAddress" class="input" type="text" placeholder="mqtt://10.0.1.1:1883">
+                                    </div>
+                                </div>
+                                <div class="field">
+                                    <label class="label">Username</label>
+                                    <input id="mqttUsernameInput" class="input" type="text" placeholder="jeff">
+                                </div>
+                                <div class="field">
+                                    <label class="label">Password</label>
+                                    <p class="control has-icons-left">
+
+                                        <input id="mqttPasswordInput" class="input" type="password" placeholder="Password">
+                                        <!--<input id=abc" class="input" type="password" placeholder="Password"> -->
+                                        <span class="icon is-small is-left">
+                                            <i class="fas fa-lock"></i>
+                                        </span>
+                                    </p>
+                                </div>
+                                <div class="control">
+                                    <button id="saveMqttButton" class="button is-dark">Save</button>
                                 </div>
                             </article>
 <!--                            <article class="tile is-child notification is-warning">
@@ -45,6 +71,10 @@
                                     <tr>
                                         <td>MACAddress</td>
                                         <th id="macText"><i class="fas fa-question"></i></th>
+                                    </tr>
+                                    <tr>
+                                        <td>Uptime</td>
+                                        <td id="uptimeText"><i class="fas fa-question"></i></td>
                                     </tr>
                                     <tr>
                                         <td>Battery status</td>
@@ -135,6 +165,7 @@
                                 document.getElementById("voltageText").innerText = data.voltage;
                             }
                             document.getElementById("statusText").innerText = data.status;
+                            document.getElementById("uptimeText").innerText = data.uptime;
                         }
                     });
                 getJSON('/pm',
@@ -156,18 +187,6 @@
                         }
                     });
             }
-
-            document.getElementById("saveWifiButton").addEventListener("click", ()=>
-            {
-                getJSON('/wifi?ssid=' + encodeURIComponent(document.getElementById("ssidInput").value) + '&password=' + encodeURIComponent(document.getElementById("passwordInput").value),
-                    function(err, data) {
-                        if (err !== null) {
-                            alert('Something went wrong: ' + err);
-                        } else {
-                            alert("Done")
-                        }
-                    });
-            });
             getJSON('/mac',
                 function(err, data) {
                     if (err !== null) {
@@ -177,7 +196,46 @@
                     }
                 });
             updateData();
-            setInterval(updateData, 3000);
+            setInterval(updateData, 1000);
+
+            document.getElementById("saveWifiButton").addEventListener("click", ()=>
+            {
+                if(document.getElementById("ssidInput").value.length === 0)
+                {
+                    alert("Please enter an SSID");
+                    return;
+                }
+                if(document.getElementById("passwordInput").value.length < 8)
+                {
+                    alert("Entered password is too short, must be at least 8 characters long");
+                    return;
+                }
+                getJSON('/wifi?ssid=' + encodeURIComponent(document.getElementById("ssidInput").value) + '&password=' + encodeURIComponent(document.getElementById("passwordInput").value),
+                    function(err, data) {
+                        if (err !== null) {
+                            alert('Something went wrong: ' + err);
+                        } else {
+                            alert(data.msg)
+                        }
+                    });
+            });
+
+            document.getElementById("saveMqttButton").addEventListener("click", ()=>
+            {
+                if(document.getElementById("mqttAddress").value.length < 8)
+                {
+                    alert("Please enter a valid URI");
+                    return;
+                }
+                getJSON('/mqtt?uri=' + encodeURIComponent(document.getElementById("mqttAddress").value) + '&username=' + encodeURIComponent(document.getElementById("mqttUsernameInput").value) + '&password=' + encodeURIComponent(document.getElementById("mqttPasswordInput").value),
+                    function(err, data) {
+                        if (err !== null) {
+                            alert('Something went wrong: ' + err);
+                        } else {
+                            alert(data.msg)
+                        }
+                    });
+            });
         </script>
     </footer>
 </html>

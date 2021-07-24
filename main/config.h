@@ -24,5 +24,7 @@ typedef enum
 /************************** FUNCTION PROTOTYPES *************************/
 bool config_init();
 char* config_getStringField(config_string_field_e field);
+void config_setStringField(config_string_field_e field, char* newValue);
+bool config_save();
 /******************************* GLOBALS ********************************/
 #endif /* CONFIG_H */

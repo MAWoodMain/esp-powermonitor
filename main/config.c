@@ -8,6 +8,7 @@
 #include "esp_spiffs.h"
 #include "jsmn.h"
 /******************************* DEFINES ********************************/
+#define CONFIG_SAVE_FILE_BUFFER_LENGTH 512
 /***************************** STRUCTURES *******************************/
 /************************** FUNCTION PROTOTYPES *************************/
 bool config_parseConfigFile();
@@ -32,6 +33,7 @@ static char* config_stringFieldValues[CONFIG_STRING_FIELD_MAX] =
                 [CONFIG_STRING_FIELD_MQTT_PASSWORD]     = NULL
         };
 /******************************* VARIABLES ******************************/
+char config_configSaveFileBuffer[CONFIG_SAVE_FILE_BUFFER_LENGTH];
 /*************************** PUBLIC FUNCTIONS ***************************/
 bool config_init()
 {
@@ -95,6 +97,52 @@ char* config_getStringField(config_string_field_e field)
 
     return retVal;
 }
+
+void config_setStringField(config_string_field_e field, char* newValue)
+{
+    uint32_t newStringLength = strlen(newValue);
+
+    if(field < CONFIG_STRING_FIELD_MAX)
+    {
+        free(config_stringFieldValues[field]);
+        config_stringFieldValues[field] = calloc(newStringLength + 1, sizeof(char));
+        strcpy(config_stringFieldValues[field], newValue);
+    }
+}
+
+bool config_save()
+{
+    bool retVal = false;
+    char fileName[64];
+    FILE* f;
+    uint32_t length = 0;
+    memset(config_configSaveFileBuffer, 0, CONFIG_SAVE_FILE_BUFFER_LENGTH);
+
+    sprintf(config_configSaveFileBuffer, "{");
+    for(uint32_t idx = 0; idx < CONFIG_STRING_FIELD_MAX; idx++)
+    {
+        if(idx != 0)
+        {
+            sprintf(config_configSaveFileBuffer + strlen(config_configSaveFileBuffer), ",");
+        }
+        sprintf(config_configSaveFileBuffer + strlen(config_configSaveFileBuffer), "\"%s\":\"%s\"", config_jsonStringFieldNames[idx], config_stringFieldValues[idx]);
+    }
+    sprintf(config_configSaveFileBuffer + strlen(config_configSaveFileBuffer), "}");
+    ESP_LOGI(TAG, "new config: %s", config_configSaveFileBuffer);
+
+    length = strlen(config_configSaveFileBuffer);
+
+    memset(fileName, 0, sizeof(fileName));
+    strcpy(fileName, "/spiffs/");
+    strcat(fileName, config_configFilename);
+
+    f = fopen(fileName, "w");
+    retVal = length == fwrite(config_configSaveFileBuffer, 1, length, f);
+
+    fclose(f);
+    return retVal;
+}
+
 /*************************** PRIVATE FUNCTIONS **************************/
 bool config_parseConfigFile()
 {
@@ -102,7 +150,7 @@ bool config_parseConfigFile()
     FILE* f;
     uint32_t fileSize = 0;
     char fileName[64];
-    char *fileBuffer;
+    char *fileBuffer = config_configSaveFileBuffer;
     jsmn_parser p;
     jsmntok_t t[128]; /* We expect no more than 128 JSON tokens */
     int32_t tokens = 0;
@@ -111,7 +159,6 @@ bool config_parseConfigFile()
     memset(fileName, 0, sizeof(fileName));
     strcpy(fileName, "/spiffs/");
     strcat(fileName, config_configFilename);
-
     f = fopen(fileName, "r");
     if (f == NULL) {
         ESP_LOGE(TAG, "Failed to open %s", fileName);
@@ -123,9 +170,10 @@ bool config_parseConfigFile()
         fileSize = ftell(f);
         fseek(f, 0L, SEEK_SET);
         ESP_LOGI(TAG, "Config file size %d", fileSize);
-        fileBuffer = calloc(fileSize+1, sizeof(char));
+        //fileBuffer = calloc(fileSize+1, sizeof(char));
         if(fileBuffer != NULL)
         {
+            memset(fileBuffer, 0, CONFIG_SAVE_FILE_BUFFER_LENGTH);
             ESP_LOGI(TAG, "Read %u characters", fread(&fileBuffer[0], 1, fileSize, f));
             ESP_LOGI(TAG, "Read file: \"%s\"", fileBuffer);
             fclose(f);
