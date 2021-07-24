@@ -101,7 +101,7 @@ battery_state_e battery_getState(void)
         /* if lines changes are within 1.1 seconds of each other assume its oscillating */
         if((MAX(lastLow,lastHigh) - MIN(lastLow,lastHigh)) < 1100)
         {
-            state = BATTERY_STATE_ABNORMAL;
+            //state = BATTERY_STATE_ABNORMAL;
         }
     }
 
@@ -117,7 +117,8 @@ battery_state_e battery_getState(void)
         }
         else
         {
-            state = BATTERY_STATE_FULL;
+            //state = BATTERY_STATE_FULL;
+            state = BATTERY_STATE_CHARGING;
         }
     }
 
