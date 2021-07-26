@@ -1,0 +1,35 @@
+Comment,Designator,Footprint,LCSC Part #
+"1uF Unpolarized capacitor, small symbol","C1,C2,C13",C_0603_1608Metric,C15849
+"100nF Unpolarized capacitor, small symbol","C3,C4,C7,C8,C9,C10,C11,C12",C_0402_1005Metric,C1525
+"10uF Polarized capacitor, small symbol","C5,C6",CP_EIA-3216-18_Kemet-A,C7171
+"FM-B2020RGBA-HG RGB LED, anode/red/green/blue",D1,FM-B2020RGBA-HG,C108793
+"ESD9B3.3ST5G ESD protection diode, 3.3Vrwm, SOD-923","D2,D3,D4,D5",SMD-DFN1006,C316039
+"600R@100MHz Ferrite bead, small symbol",FB1,L_0402_1005Metric,C96687
+MountingHole Mounting Hole without connection,H1,MountingHole_3.2mm_M3,
+USB_C_Receptacle_USB2.0 USB 2.0-only Type-C Receptacle connector,J1,TYPEC-304S-ACP16,C720630
+"Battery Generic connector, single row, 01x02, script generated (kicad-library-utils/schlib/autogen/connector/)",J2,JST_PH_S2B-PH-SM4-TB_1x02-1MP_P2.00mm_Horizontal,C225233
+"AudioJack3 Audio Jack, 3 Poles (Stereo / TRS)","J3,J4,J5,J6",PJ-327F,C128989
+AC In DC Barrel Jack with an internal switch,J7,DC-005-5A-2.0-SMT,C319134
+"Power Path Bypass Solder Jumper, 2-pole, open",JP1,SolderJumper-2_P1.3mm_Open_RoundedPad1.0x1.5mm,
+"150R Resistor, small symbol",R1,R_0402_1005Metric,C25082
+"120R Resistor, small symbol","R2,R3,R4",R_0402_1005Metric,C25079
+5K1 Resistor,"R5,R6",R_0402_1005Metric,C25905
+10K Resistor,"R7,R9,R10,R11,R13,R14,R15,R16,R17,R18",R_0402_1005Metric,C25744
+1.1K Resistor,R8,R_0402_1005Metric,C25860
+560R Resistor,R12,R_0402_1005Metric,C25126
+"22R Resistor, small symbol","R19,R20,R21,R22",R_0402_1005Metric,C25092
+6.8K Resistor,R23,R_0402_1005Metric,C25917
+1K Resistor,R24,R_0402_1005Metric,C11702
+"SW_SPDT Switch, single pole double throw",SW1,MSK12C02-HB,C431541
+"SW_DIP_x02 2x DIP Switch, Single Pole Single Throw (SPST) switch, small symbol","SW2,SW3",SW_DIP_SPSTx02_Slide_6.7x6.64mm_W8.61mm_P2.54mm_LowProfile,C129078
+10K NTC Temperature dependent resistor,TH1,R_0402_1005Metric,C77131
+VBUS test point,TP1,TestPoint_THTPad_D2.0mm_Drill1.0mm,
+VPP test point,TP2,TestPoint_THTPad_D2.0mm_Drill1.0mm,
+3V3 test point,TP3,TestPoint_THTPad_D2.0mm_Drill1.0mm,
+RX test point,TP4,TestPoint_Pad_D1.5mm,
+TX test point,TP5,TestPoint_Pad_D1.5mm,
+"ESP32-S2-WROVER RF Module, ESP32-D0WDQ6 SoC, Wi-Fi 802.11b/g/n, 32-bit, 2.7-3.6V, onboard antenna, SMD",U1,ESP32-S2-WROVER,
+XC6806XXXX11-G ,U2,LGA-10B01,
+XC6203E332PR ,U3,SOT-89-3,C19973
+"CJ432 Shunt Regulator, SOT-23",U4,SOT-23,C8499
+"LM741 Operational Amplifier, DIP-8/TO-99-8",U5,SOP-8_3.9x4.9mm_P1.27mm,C356704

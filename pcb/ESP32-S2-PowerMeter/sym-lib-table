@@ -1,0 +1,5 @@
+(sym_lib_table
+  (lib (name XC6203)(type Legacy)(uri "${KIPRJMOD}/Project Library/Symbols/XC6203.lib")(options "")(descr ""))
+  (lib (name xc6806xxxx11-g)(type Legacy)(uri "${KIPRJMOD}/Project Library/Symbols/xc6806xxxx11-g.lib")(options "")(descr ""))
+  (lib (name FM-B2020RGBA-HG)(type Legacy)(uri "${KIPRJMOD}/Project Library/Symbols/FM-B2020RGBA-HG.lib")(options "")(descr ""))
+)
