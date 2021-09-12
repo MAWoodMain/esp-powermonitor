@@ -115,6 +115,10 @@ battery_state_e battery_getState(void)
         {
             state = BATTERY_STATE_CHARGING;
         }
+        else if(battery_lastReportedVoltage > 4.8)
+        {
+            state = BATTERY_STATE_NOT_FITTED;
+        }
         else
         {
             //state = BATTERY_STATE_FULL;

@@ -17,7 +17,9 @@ char* format_renderBatteryState(battery_state_e state)
     char* output;
     switch (state)
     {
-
+        case BATTERY_STATE_NOT_FITTED:
+            output = "Not fitted";
+            break;
         case BATTERY_STATE_CHARGING:
             output = "Charging";
             break;
