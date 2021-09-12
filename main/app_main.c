@@ -17,13 +17,98 @@
 #include "config.h"
 #include "battery.h"
 #include "format.h"
+#include "home_assistant.h"
 
 /******************************* DEFINES ********************************/
 /***************************** STRUCTURES *******************************/
 /************************** FUNCTION PROTOTYPES *************************/
+bool app_main_mqttImpl(char* topic, char* payload, bool retain);
 /******************************* CONSTANTS ******************************/
-static const char *TAG = "MAIN";
+static const char* TAG = "MAIN";
+static home_assistant_deviceConfig_t device_config =
+        {
+                .componentType = HA_COMPONENT_SENSOR,
+                .deviceName = "ESP Power Monitor",
+                .model = "esp-pm-v1",
+                .manufacturer = "Matt Wood",
+                .useCombinedPayload = true,
+                .mqttImplementation = app_main_mqttImpl
+        };
+
+static home_assistant_deviceChannelConfig_t voltage_channel_config =
+        {
+                .name = "Line Voltage",
+                .unitOfMeasurement = HA_UOM_VOLT,
+                .class = HA_CLASS_VOLTAGE,
+                .valueType = HA_TYPE_DOUBLE,
+                .initialValue.d = 0.0,
+                .decimalPlaces = 1,
+                .stateClass = HA_STATE_CLASS_MEASUREMENT
+        };
+
+static home_assistant_deviceChannelConfig_t frequency_channel_config =
+        {
+                .name = "Line Frequency",
+                .unitOfMeasurement = HA_UOM_HZ,
+                .class = HA_CLASS_HA_CLASS_NONE,
+                .valueType = HA_TYPE_DOUBLE,
+                .initialValue.d = 0.0,
+                .decimalPlaces = 2,
+                .stateClass = HA_STATE_CLASS_MEASUREMENT
+        };
+
+static home_assistant_deviceChannelConfig_t current_1_channel_config =
+        {
+                .name = "Current 1",
+                .unitOfMeasurement = HA_UOM_AMP,
+                .class = HA_CLASS_CURRENT,
+                .valueType = HA_TYPE_DOUBLE,
+                .initialValue.d = 0.0,
+                .decimalPlaces = 3,
+                .stateClass = HA_STATE_CLASS_MEASUREMENT
+        };
+
+static home_assistant_deviceChannelConfig_t power_1_channel_config =
+        {
+                .name = "Power 1",
+                .unitOfMeasurement = HA_UOM_WATT,
+                .class = HA_CLASS_POWER,
+                .valueType = HA_TYPE_DOUBLE,
+                .initialValue.d = 0.0,
+                .decimalPlaces = 3,
+                .stateClass = HA_STATE_CLASS_MEASUREMENT
+        };
+
+static home_assistant_deviceChannelConfig_t apparent_power_1_channel_config =
+        {
+                .name = "Apparent Power 1",
+                .unitOfMeasurement = HA_UOM_VA,
+                .class = HA_CLASS_POWER,
+                .valueType = HA_TYPE_DOUBLE,
+                .initialValue.d = 0.0,
+                .decimalPlaces = 3,
+                .stateClass = HA_STATE_CLASS_MEASUREMENT
+        };
+
+static home_assistant_deviceChannelConfig_t power_consumption_1_channel_config =
+        {
+                .name = "Power Consumption 1",
+                .unitOfMeasurement = HA_UOM_KWH,
+                .class = HA_CLASS_ENERGY,
+                .valueType = HA_TYPE_DOUBLE,
+                .initialValue.d = 0.0,
+                .decimalPlaces = 3,
+                .stateClass = HA_STATE_CLASS_TOTAL_INCREASING
+        };
 /******************************* VARIABLES ******************************/
+home_assistant_deviceChannel_t* voltage_channel;
+home_assistant_deviceChannel_t* frequency_channel;
+home_assistant_deviceChannel_t* current_channel;
+home_assistant_deviceChannel_t* power_channel;
+home_assistant_deviceChannel_t* apparentPower_channel;
+home_assistant_deviceChannel_t* powerConsumption_channel;
+
+
 /*************************** PUBLIC FUNCTIONS ***************************/
 
 _Noreturn void app_main(void)
@@ -37,12 +122,29 @@ _Noreturn void app_main(void)
         ret = nvs_flash_init();
     }
     ESP_ERROR_CHECK(ret);
+
+    if(ESP_OK != esp_read_mac( device_config.macAddress, ESP_MAC_WIFI_STA))
+    {
+        ESP_LOGE(TAG, "Failed to read factory MAC Address");
+    }
+
+    vTaskDelay( pdMS_TO_TICKS(2000));
     led_init();
     config_init();
     power_monitor_init();
     battery_init();
     wifi_init();
     wifi_connect();
+
+    home_assistant_init( device_config );
+
+    voltage_channel = home_assistant_createChannel( voltage_channel_config );
+    frequency_channel = home_assistant_createChannel( frequency_channel_config );
+    current_channel = home_assistant_createChannel( current_1_channel_config );
+    power_channel = home_assistant_createChannel( power_1_channel_config );
+    apparentPower_channel = home_assistant_createChannel( apparent_power_1_channel_config );
+    powerConsumption_channel = home_assistant_createChannel( power_consumption_1_channel_config );
+
 
     if(wifi_waitForConnection(portMAX_DELAY))
     {
@@ -51,6 +153,7 @@ _Noreturn void app_main(void)
         mqtt_connect();
         if(mqtt_waitForConnection(portMAX_DELAY))
         {
+            home_assistant_sendDiscoveryMessage();
             led_pretty_light_pattern();
 
             for (;;) {
@@ -67,6 +170,13 @@ _Noreturn void app_main(void)
                     battery_handleVoltageMeasurement(measurement.batteryVoltage);
                     if(measurement.condition == PM_CONDITION_OK)
                     {
+                        powerConsumption_channel->latestValue.d += ((measurement.rmsP[0] / 3600.0)/1000);
+                        home_assistant_submitDoubleValue(voltage_channel, measurement.rmsV);
+                        home_assistant_submitDoubleValue(frequency_channel, measurement.frequency);
+                        home_assistant_submitDoubleValue(current_channel, measurement.rmsI[0]);
+                        home_assistant_submitDoubleValue(power_channel, measurement.rmsP[0]);
+                        home_assistant_submitDoubleValue(apparentPower_channel, measurement.rmsVA[0]);
+                        home_assistant_publishValues();
                         memset(payload, 0, sizeof(payload));
                         sprintf( (char*) payload,
                                  "{\"rmsV\":%.03f,\"frequency\":%.02f, \"rmsI\":[%.03f,%.03f,%.03f,%.03f],\"rmsVA\":[%.03f,%.03f,%.03f,%.03f],\"rmsP\":[%.03f,%.03f,%.03f,%.03f],\"vssVoltage\":%.02f,\"batteryStatus\":\"%s\"}",
@@ -117,3 +227,8 @@ _Noreturn void app_main(void)
 }
 
 /*************************** PRIVATE FUNCTIONS **************************/
+
+bool app_main_mqttImpl(char* topic, char* payload, bool retain)
+{
+    return mqtt_send( topic, payload, 1, retain );
+}

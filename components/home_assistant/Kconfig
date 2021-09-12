@@ -1,0 +1,13 @@
+menu "Home Assistant"
+    config HOME_ASSISTANT_PAYLOAD_BUFFER_SIZE
+        int "Payload buffer size"
+        default 1024
+        range 256 4096
+
+    config HOME_ASSISTANT_MAX_CHANNELS
+        int "Max number of channels"
+        default 10
+        range 1 256
+
+# End Home Assistant menu
+endmenu
