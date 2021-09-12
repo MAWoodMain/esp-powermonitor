@@ -2,7 +2,7 @@
 
   (general
     (thickness 1.6)
-    (drawings 22)
+    (drawings 24)
     (tracks 463)
     (zones 0)
     (modules 66)
@@ -2990,7 +2990,13 @@
       (net 11 CH4_IN) (solder_paste_margin -0.05))
   )
 
-  (gr_text Batt (at 142 158 90) (layer B.SilkS) (tstamp 60E56C47)
+  (gr_text "-\n" (at 143 162 180) (layer B.SilkS) (tstamp 60E573EE)
+    (effects (font (size 1.5 1.5) (thickness 0.3)) (justify mirror))
+  )
+  (gr_text + (at 143 154 180) (layer B.SilkS) (tstamp 60E573EA)
+    (effects (font (size 1.5 1.5) (thickness 0.3)) (justify mirror))
+  )
+  (gr_text Batt (at 138 158 90) (layer B.SilkS) (tstamp 60E56C47)
     (effects (font (size 2 2) (thickness 0.25)) (justify mirror))
   )
   (gr_text "-\n" (at 143 162.5) (layer F.SilkS) (tstamp 60E56ADD)
